@@ -7,6 +7,17 @@
 
 Wrapper for [duktape](https://duktape.org) JavaScript embeddable engine.
 
+## Builds statuses for Rust channels
+
+| stable            | beta              | nightly           |
+|-------------------|-------------------|-------------------|
+| [![Build1][3]][4] | [![Build2][2]][4] | [![Build3][1]][4] |
+
+[1]: https://travis-matrix-badges.herokuapp.com/repos/kodegenix/kg-js/branches/master/1
+[2]: https://travis-matrix-badges.herokuapp.com/repos/kodegenix/kg-js/branches/master/2
+[3]: https://travis-matrix-badges.herokuapp.com/repos/kodegenix/kg-js/branches/master/3
+[4]: https://travis-ci.org/kodegenix/kg-js
+
 ## License
 
 Licensed under either of

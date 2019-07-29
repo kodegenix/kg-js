@@ -14,10 +14,10 @@ build = "build.rs"
 [workspace]
 
 [dependencies]
-kg-diag = "0.2.1"
+kg-diag = "0.2.3"
 kg-tree = "0.1.4"
 kg-utils = "0.3.0"
-log = "0.4.7"
+log = "0.4.8"
 lazy_static = "1.3.0"
 bitflags = "1.1.0"
 rlibc = "1.0.0"

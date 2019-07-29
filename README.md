@@ -3,7 +3,7 @@
 [![Latest Version](https://img.shields.io/crates/v/kg-js.svg)](https://crates.io/crates/kg-js)
 [![Documentation](https://docs.rs/kg-js/badge.svg)](https://docs.rs/kg-js)
 [![Build Status](https://travis-ci.org/kodegenix/kg-js.svg?branch=master)](https://travis-ci.org/kodegenix/kg-js)
-[![Coverage Status](https://coveralls.io/repos/github/kodegenix/kg-js/badge.svg?branch=master)](https://coveralls.io/github/kodegenix/kg-js?branch=master)
+[![codecov](https://codecov.io/gh/kodegenix/kg-js/branch/master/graph/badge.svg)](https://codecov.io/gh/kodegenix/kg-js)
 
 Wrapper for [duktape](https://duktape.org) JavaScript embeddable engine.
 

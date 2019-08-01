@@ -12,7 +12,7 @@ use std::mem::{transmute, size_of};
 
 use rlibc::memcpy;
 
-use kg_tree::{NodeRef, Node, Value};
+use kg_tree::{NodeRef, Node, Value, Properties, Elements};
 
 
 bitflags! {
@@ -81,7 +81,7 @@ impl From<i32> for DukType {
                 transmute(e)
             }
         } else {
-            panic!(format!("Incorrect DukType value: {}", e));
+            panic!(format!("Incorrect DukType value: {}", e)); //FIXME (jc)
         }
     }
 }
@@ -210,9 +210,9 @@ extern "C" {
 extern "C" fn fatal_handler(udata: *const c_void, msg: *const c_char) {
     unsafe {
         let msg = CStr::from_ptr(msg).to_string_lossy();
-        let s = format!("Duktape fatal multi.rs (udata {:p}): {}", udata, msg);
-        error!("Duktape fatal multi.rs (udata {:p}): {}", udata, msg);
-        panic!(s);
+        let s = format!("Duktape fatal error (udata {:p}): {}", udata, msg);
+        error!("Duktape fatal error (udata {:p}): {}", udata, msg); //FIXME (jc)
+        panic!(s); //FIXME (jc)
     }
 }
 
@@ -257,10 +257,10 @@ impl Engine {
         };
 
         if ctx.is_null() {
-            panic!("Could not create duktape context");
+            panic!("Could not create duktape context"); //FIXME (jc)
         }
 
-        debug!("Created duktape context: {:p}", ctx);
+        debug!("Created duktape context: {:p}", ctx); //FIXME (jc)
 
         Engine {
             ctx: ctx,
@@ -421,7 +421,7 @@ impl Engine {
     pub fn get_prop(&mut self, obj_index: i32) {
         unsafe {
             if duk_get_prop(self.ctx, obj_index) != 1 {
-                panic!();
+                panic!(); //FIXME (jc)
             }
         }
     }
@@ -440,7 +440,7 @@ impl Engine {
                                     obj_index,
                                     key.as_ptr() as *const c_char,
                                     key.len()) != 1 {
-                panic!();
+                panic!(); //FIXME (jc)
             }
         }
     }
@@ -459,7 +459,7 @@ impl Engine {
     pub fn get_prop_index(&mut self, obj_index: i32, index: u32) {
         unsafe {
             if duk_get_prop_index(self.ctx, obj_index, index) != 1 {
-                panic!();
+                panic!(); //FIXME (jc)
             }
         }
     }
@@ -504,7 +504,7 @@ impl Engine {
                 println!("ERR: {}",
                          CStr::from_ptr(duk_safe_to_lstring(self.ctx, -1, &mut len))
                              .to_str()
-                             .unwrap());
+                             .unwrap()); //FIXME (jc)
                 duk_pop(self.ctx);
             }
         }
@@ -523,7 +523,7 @@ impl Engine {
                 println!("ERR: {}",
                          CStr::from_ptr(duk_safe_to_lstring(self.ctx, -1, &mut len))
                              .to_str()
-                             .unwrap());
+                             .unwrap()); //FIXME (jc)
                 duk_pop(self.ctx);
             }
         }
@@ -546,8 +546,6 @@ impl Engine {
     }
 
     pub fn read_node<'a>(&mut self, obj_index: i32) -> NodeRef {
-        use kg_utils::collections::LinkedHashMap;
-
         unsafe fn read<'a>(ctx: *mut duk_context, obj_index: i32) -> NodeRef {
             use self::DukType::*;
             use std::str;
@@ -579,13 +577,13 @@ impl Engine {
                 DUK_TYPE_OBJECT => {
                     if duk_is_array(ctx, obj_index) == 1 {
                         let len = duk_get_length(ctx, obj_index);
-                        let mut elems = Vec::with_capacity(len);
+                        let mut elems = Elements::with_capacity(len);
                         duk_enum(ctx, obj_index, DukEnumFlags::DUK_ENUM_ARRAY_INDICES_ONLY.bits());
                         while duk_next(ctx, -1, 1) == 1 {
                             let index = duk_to_number(ctx, -2) as usize;
                             let value = read(ctx, -1);
                             if index != elems.len() {
-                                panic!();
+                                panic!(); //FIXME (jc)
                             }
                             elems.push(value);
                             duk_pop_2(ctx);
@@ -593,7 +591,7 @@ impl Engine {
                         duk_pop(ctx);
                         NodeRef::array(elems)
                     } else if duk_is_function(ctx, obj_index) == 0 && duk_is_thread(ctx, obj_index) == 0 {
-                        let mut props = LinkedHashMap::new();
+                        let mut props = Properties::new();
                         duk_enum(ctx, obj_index, DukEnumFlags::DUK_ENUM_OWN_PROPERTIES_ONLY.bits());
                         while duk_next(ctx, -1, 1) == 1 {
                             let mut key_len = 0;
@@ -605,10 +603,10 @@ impl Engine {
                         duk_pop(ctx);
                         NodeRef::object(props)
                     } else {
-                        panic!();
+                        panic!(); //FIXME (jc)
                     }
                 }
-                _ => panic!(),
+                _ => panic!(), //FIXME (jc)
             }
         }
 
@@ -670,7 +668,7 @@ impl Drop for Engine {
     fn drop(&mut self) {
         if self.owner && !self.ctx.is_null() {
             unsafe {
-                debug!("Destroying duktape context: {:p}", self.ctx);
+                debug!("Destroying duktape context: {:p}", self.ctx); //FIXME (jc)
                 duk_destroy_heap(self.ctx);
                 self.ctx = ptr::null_mut();
             }

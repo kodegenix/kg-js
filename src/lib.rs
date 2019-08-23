@@ -558,7 +558,7 @@ impl Engine {
                 DUK_TYPE_BOOLEAN => NodeRef::boolean(duk_get_boolean(ctx, obj_index) == 1),
                 DUK_TYPE_NUMBER => {
                     let n = duk_get_number(ctx, obj_index);
-                    if n.is_finite() && n.trunc() == n {
+                    if n.is_normal() && (n.trunc() - n).abs() < std::f64::EPSILON {
                         NodeRef::integer(n as i64)
                     } else {
                         NodeRef::float(n)

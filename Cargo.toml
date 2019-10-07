@@ -14,13 +14,13 @@ build = "build.rs"
 [workspace]
 
 [dependencies]
-kg-diag = "0.3.1"
+kg-diag = "0.4.0"
 kg-tree = "0.2.0"
 kg-utils = "0.3.1"
 log = "0.4.8"
 lazy_static = "1.4.0"
-bitflags = "1.1.0"
+bitflags = "1.2.0"
 rlibc = "1.0.0"
 
 [build-dependencies]
-cc = { version = "1.0.42", features = ["parallel"] }
+cc = { version = "1.0.45", features = ["parallel"] }

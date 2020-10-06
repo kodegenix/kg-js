@@ -23,4 +23,4 @@ bitflags = "1.2.1"
 rlibc = "1.0.0"
 
 [build-dependencies]
-cc = { version = "1.0.59", features = ["parallel"] }
+cc = { version = "1.0.60", features = ["parallel"] }

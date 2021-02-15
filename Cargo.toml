@@ -17,10 +17,10 @@ build = "build.rs"
 kg-diag = "0.4.0"
 kg-tree = "0.2.1"
 kg-utils = "0.4.0"
-log = "0.4.11"
+log = "0.4.14"
 lazy_static = "1.4.0"
 bitflags = "1.2.1"
 rlibc = "1.0.0"
 
 [build-dependencies]
-cc = { version = "1.0.62", features = ["parallel"] }
+cc = { version = "1.0.66", features = ["parallel"] }

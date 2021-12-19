@@ -1,17 +1,16 @@
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate bitflags;
+#![feature(min_specialization)]
+#![feature(array_methods)]
 
+use log::{error, debug};
+use bitflags::bitflags;
+use once_cell::sync::Lazy;
+use rlibc::memcpy;
 use std::ffi::CStr;
 use std::os::raw::*;
 use std::ptr;
 use std::mem::{transmute, size_of};
 
-use rlibc::memcpy;
-
+#[cfg(feature = "kg-tree")]
 use kg_tree::{NodeRef, Node, Value, Properties, Elements};
 
 
@@ -58,6 +57,14 @@ bitflags! {
     }
 }
 
+bitflags! {
+    struct DukBufFlags: u32 {
+        const DUK_BUF_FLAG_DYNAMIC              = (1 << 0);    /* internal flag: dynamic buffer */
+        const DUK_BUF_FLAG_EXTERNAL             = (1 << 1);    /* internal flag: external buffer */
+        const DUK_BUF_FLAG_NOZERO               = (1 << 2);    /* internal flag: don't zero allocated buffer */
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(i32)]
 #[allow(non_camel_case_types, dead_code)]
@@ -77,11 +84,9 @@ enum DukType {
 impl From<i32> for DukType {
     fn from(e: i32) -> Self {
         if e >= DukType::DUK_TYPE_NONE as i32 && e <= DukType::DUK_TYPE_LIGHTFUNC as i32 {
-            unsafe {
-                transmute(e)
-            }
+            unsafe { transmute(e) }
         } else {
-            panic!(format!("Incorrect DukType value: {}", e)); //FIXME (jc)
+            panic!("incorrect DukType value: {}", e); //FIXME (jc)
         }
     }
 }
@@ -145,12 +150,15 @@ extern "C" {
 
     fn duk_push_null(ctx: *mut duk_context);
     fn duk_push_boolean(ctx: *mut duk_context, val: i32);
+    fn duk_push_int(ctx: *mut duk_context, val: i32);
+    fn duk_push_uint(ctx: *mut duk_context, val: u32);
     fn duk_push_number(ctx: *mut duk_context, val: f64);
     fn duk_push_lstring(ctx: *mut duk_context, str: *const c_char, len: usize) -> *const c_char;
     fn duk_push_array(ctx: *mut duk_context) -> i32;
     fn duk_push_object(ctx: *mut duk_context) -> i32;
     fn duk_push_pointer(ctx: *mut duk_context, p: *mut c_void);
-    fn duk_push_buffer_raw(ctx: *mut duk_context, len: usize, dynamic: i32) -> *mut c_void;
+    fn duk_push_buffer_raw(ctx: *mut duk_context, len: usize, dynamic: u32) -> *mut c_void;
+    fn duk_config_buffer(ctx: *mut duk_context, index: i32, ptr: *mut c_void, len: usize);
 
     fn duk_push_c_function(ctx: *mut duk_context, func: Option<duk_c_function>, nargs: i32) -> i32;
     fn duk_push_current_function(ctx: *mut duk_context);
@@ -211,8 +219,8 @@ extern "C" fn fatal_handler(udata: *const c_void, msg: *const c_char) {
     unsafe {
         let msg = CStr::from_ptr(msg).to_string_lossy();
         let s = format!("Duktape fatal error (udata {:p}): {}", udata, msg);
-        error!("Duktape fatal error (udata {:p}): {}", udata, msg); //FIXME (jc)
-        panic!(s); //FIXME (jc)
+        error!("{}", s); //FIXME (jc)
+        panic!("{}", s); //FIXME (jc)
     }
 }
 
@@ -232,26 +240,39 @@ extern "C" fn func_dispatch(ctx: *mut duk_context) -> i32 {
         duk_get_prop_lstring(ctx, -1, TARGET_PROP.as_ptr() as *const c_char, TARGET_PROP.len());
         let target: &mut dyn CallJs = *(duk_get_buffer(ctx, -1, None) as *mut &mut dyn CallJs);
         duk_pop_2(ctx);
-        target.call(&mut Engine::from_ptr(ctx), name)
+        //FIXME handle call error
+        target.call(&mut JsEngine::from_ptr(ctx), name).unwrap();
+        0
     }
 }
 
+#[derive(Debug)]
+pub struct JsError(String);
+
+impl std::fmt::Display for JsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Error: {}", self.0)
+    }
+}
+
+impl std::error::Error for JsError {}
+
 
 #[derive(Debug)]
-pub struct Engine {
+pub struct JsEngine {
     ctx: *mut duk_context,
     owner: bool,
 }
 
-impl Engine {
-    fn from_ptr(ctx: *mut duk_context) -> Engine {
-        Engine {
-            ctx: ctx,
+impl JsEngine {
+    fn from_ptr(ctx: *mut duk_context) -> JsEngine {
+        JsEngine {
+            ctx,
             owner: false,
         }
     }
 
-    pub fn new() -> Engine {
+    pub fn new() -> JsEngine {
         let ctx = unsafe {
             duk_create_context(ptr::null(), Some(fatal_handler))
         };
@@ -262,36 +283,30 @@ impl Engine {
 
         debug!("Created duktape context: {:p}", ctx); //FIXME (jc)
 
-        Engine {
-            ctx: ctx,
+        JsEngine {
+            ctx,
             owner: true,
         }
     }
 
     pub fn version() -> u32 {
-        lazy_static!{
-            static ref DUK_VERSION: u32 = {
-                unsafe {
-                    duk_version()
-                }
-            };
-        }
+        static DUK_VERSION: Lazy<u32> = Lazy::new(|| {
+            unsafe { duk_version() }
+        });
         *DUK_VERSION
     }
 
     pub fn version_info() -> &'static str {
-        lazy_static!{
-            static ref DUK_VERSION_INFO: String = {
-                unsafe {
-                    format!(
-                        "{} ({}/{})",
-                        CStr::from_ptr(duk_git_describe()).to_str().unwrap(),
-                        CStr::from_ptr(duk_git_branch()).to_str().unwrap(),
-                        &(CStr::from_ptr(duk_git_commit()).to_str().unwrap())[0..9])
-                }
-            };
-        }
-        &DUK_VERSION_INFO
+        static DUK_VERSION_INFO: Lazy<String> = Lazy::new(|| {
+            unsafe {
+                format!(
+                    "{} ({}/{})",
+                    CStr::from_ptr(duk_git_describe()).to_str().unwrap(),
+                    CStr::from_ptr(duk_git_branch()).to_str().unwrap(),
+                    &(CStr::from_ptr(duk_git_commit()).to_str().unwrap())[0..9])
+            }
+        });
+        &*DUK_VERSION_INFO
     }
 
     #[inline]
@@ -340,8 +355,23 @@ impl Engine {
     }
 
     #[inline]
-    pub fn push_object(&mut self) -> i32 {
-        unsafe { duk_push_object(self.ctx) }
+    pub fn push_boolean(&mut self, value: bool) {
+        unsafe { duk_push_boolean(self.ctx, value as i32) }
+    }
+
+    #[inline]
+    pub fn push_null(&mut self) {
+        unsafe { duk_push_null(self.ctx) }
+    }
+
+    #[inline]
+    pub fn push_i32(&mut self, value: i32) {
+        unsafe { duk_push_int(self.ctx, value) }
+    }
+
+    #[inline]
+    pub fn push_u32(&mut self, value: u32) {
+        unsafe { duk_push_uint(self.ctx, value) }
     }
 
     #[inline]
@@ -354,6 +384,24 @@ impl Engine {
         unsafe {
             duk_push_lstring(self.ctx, value.as_ptr() as *const c_char, value.len());
         }
+    }
+
+    #[inline]
+    pub fn push_object(&mut self) -> i32 {
+        unsafe { duk_push_object(self.ctx) }
+    }
+
+    #[inline]
+    pub fn push_ext_buffer(&mut self, data: &[u8]) {
+        unsafe {
+            duk_push_buffer_raw(self.ctx, 0, (DukBufFlags::DUK_BUF_FLAG_DYNAMIC | DukBufFlags::DUK_BUF_FLAG_EXTERNAL).bits());
+            duk_config_buffer(self.ctx, -1, data.as_ptr() as *mut c_void, data.len());
+        }
+    }
+
+    #[inline]
+    pub fn push_array(&mut self) -> i32 {
+        unsafe { duk_push_array(self.ctx) }
     }
 
     pub fn push_function(&mut self, target: &mut dyn CallJs, func_name: &str, nargs: i32) {
@@ -387,18 +435,38 @@ impl Engine {
     }
 
     #[inline]
-    pub fn is_string(&mut self, index: i32) -> bool {
+    fn get_type(&self, index: i32) -> DukType {
+        DukType::from(unsafe { duk_get_type(self.ctx, index) })
+    }
+
+    #[inline]
+    pub fn is_string(&self, index: i32) -> bool {
         unsafe { duk_is_string(self.ctx, index) == 1 }
     }
 
     #[inline]
-    pub fn is_number(&mut self, index: i32) -> bool {
+    pub fn is_number(&self, index: i32) -> bool {
         unsafe { duk_is_number(self.ctx, index) == 1 }
     }
 
     #[inline]
-    pub fn is_object(&mut self, index: i32) -> bool {
+    pub fn is_object(&self, index: i32) -> bool {
         unsafe { duk_is_object(self.ctx, index) == 1 }
+    }
+
+    #[inline]
+    pub fn is_array(&self, index: i32) -> bool {
+        unsafe { duk_is_array(self.ctx, index) == 1 }
+    }
+
+    #[inline]
+    pub fn is_pure_object(&self, index: i32) -> bool {
+        unsafe {
+            duk_is_object(self.ctx, index) == 1
+            && duk_is_array(self.ctx, index) == 0
+            && duk_is_function(self.ctx, index) == 0
+            && duk_is_thread(self.ctx, index) == 0
+        }
     }
 
     #[inline]
@@ -413,8 +481,23 @@ impl Engine {
     }
 
     #[inline]
+    pub fn get_buffer(&mut self, index: i32) -> &[u8] {
+        use std::slice;
+        unsafe {
+            let mut len: usize = 0;
+            let ptr = duk_get_buffer(self.ctx, index, Some(&mut len)) as *const u8;
+            slice::from_raw_parts(ptr, len)
+        }
+    }
+
+    #[inline]
     pub fn get_number(&mut self, index: i32) -> f64 {
         unsafe { duk_get_number(self.ctx, index) }
+    }
+
+    #[inline]
+    pub fn get_boolean(&mut self, index: i32) -> bool {
+        unsafe { duk_get_boolean(self.ctx, index) != 0 }
     }
 
     #[inline]
@@ -486,6 +569,34 @@ impl Engine {
     }
 
     #[inline]
+    fn get_length(&mut self, obj_index: i32) -> usize {
+        unsafe {
+            duk_get_length(self.ctx, obj_index)
+        }
+    }
+
+    #[inline]
+    fn enum_indices(&mut self, obj_index: i32) {
+        unsafe {
+            duk_enum(self.ctx, obj_index, DukEnumFlags::DUK_ENUM_ARRAY_INDICES_ONLY.bits());
+        }
+    }
+
+    #[inline]
+    fn enum_keys(&mut self, obj_index: i32) {
+        unsafe {
+            duk_enum(self.ctx, obj_index, DukEnumFlags::DUK_ENUM_OWN_PROPERTIES_ONLY.bits());
+        }
+    }
+
+    #[inline]
+    fn next(&mut self, obj_index: i32) -> bool {
+        unsafe {
+            duk_next(self.ctx, obj_index, 1) == 1
+        }
+    }
+
+    #[inline]
     pub fn call_prop(&mut self, obj_index: i32, nargs: usize) {
         unsafe {
             duk_call_prop(self.ctx, obj_index, nargs as i32);
@@ -530,141 +641,23 @@ impl Engine {
     }
 
     #[inline]
-    pub fn write<O: WriteJs>(&mut self, obj: &O) -> i32 {
+    pub fn write<O: WriteJs>(&mut self, obj: &O) -> Result<(), JsError> {
         obj.write_js(self)
     }
 
     #[inline]
-    pub fn read<O: ReadJs>(&mut self, obj: &mut O, obj_index: i32) {
+    pub fn read<O: ReadJs>(&mut self, obj: &mut O, obj_index: i32) -> Result<(), JsError> {
         let obj_index = self.normalize_index(obj_index);
-        obj.read_js(self, obj_index);
+        obj.read_js(self, obj_index)
     }
 
     #[inline]
-    pub fn read_top<O: ReadJs>(&mut self, obj: &mut O) {
-        self.read(obj, -1);
+    pub fn read_top<O: ReadJs>(&mut self, obj: &mut O) -> Result<(), JsError> {
+        self.read(obj, -1)
     }
-
-    pub fn read_node<'a>(&mut self, obj_index: i32) -> NodeRef {
-        unsafe fn read<'a>(ctx: *mut duk_context, obj_index: i32) -> NodeRef {
-            use self::DukType::*;
-            use std::str;
-            use std::slice;
-
-            let obj_index = duk_normalize_index(ctx, obj_index);
-
-            match DukType::from(duk_get_type(ctx, obj_index)) {
-                DUK_TYPE_UNDEFINED | DUK_TYPE_NULL => NodeRef::null(),
-                DUK_TYPE_BOOLEAN => NodeRef::boolean(duk_get_boolean(ctx, obj_index) == 1),
-                DUK_TYPE_NUMBER => {
-                    let n = duk_get_number(ctx, obj_index);
-                    if n.is_normal() && (n.trunc() - n).abs() < std::f64::EPSILON {
-                        NodeRef::integer(n as i64)
-                    } else {
-                        NodeRef::float(n)
-                    }
-                }
-                DUK_TYPE_STRING => {
-                    let mut len: usize = 0;
-                    let ptr = duk_get_lstring(ctx, obj_index, Some(&mut len)) as *const u8;
-                    NodeRef::string(str::from_utf8_unchecked(slice::from_raw_parts(ptr, len)))
-                }
-                DUK_TYPE_BUFFER => {
-                    let mut len: usize = 0;
-                    let ptr = duk_get_buffer(ctx, obj_index, Some(&mut len)) as *const u8;
-                    NodeRef::binary(slice::from_raw_parts(ptr, len))
-                }
-                DUK_TYPE_OBJECT => {
-                    if duk_is_array(ctx, obj_index) == 1 {
-                        let len = duk_get_length(ctx, obj_index);
-                        let mut elems = Elements::with_capacity(len);
-                        duk_enum(ctx, obj_index, DukEnumFlags::DUK_ENUM_ARRAY_INDICES_ONLY.bits());
-                        while duk_next(ctx, -1, 1) == 1 {
-                            let index = duk_to_number(ctx, -2) as usize;
-                            let value = read(ctx, -1);
-                            if index != elems.len() {
-                                panic!(); //FIXME (jc)
-                            }
-                            elems.push(value);
-                            duk_pop_2(ctx);
-                        }
-                        duk_pop(ctx);
-                        NodeRef::array(elems)
-                    } else if duk_is_function(ctx, obj_index) == 0 && duk_is_thread(ctx, obj_index) == 0 {
-                        let mut props = Properties::new();
-                        duk_enum(ctx, obj_index, DukEnumFlags::DUK_ENUM_OWN_PROPERTIES_ONLY.bits());
-                        while duk_next(ctx, -1, 1) == 1 {
-                            let mut key_len = 0;
-                            let key_ptr = duk_get_lstring(ctx, -2, Some(&mut key_len)) as *const u8;
-                            let value = read(ctx, -1);
-                            props.insert(str::from_utf8_unchecked(slice::from_raw_parts(key_ptr, key_len)).into(), value);
-                            duk_pop_2(ctx);
-                        }
-                        duk_pop(ctx);
-                        NodeRef::object(props)
-                    } else {
-                        panic!(); //FIXME (jc)
-                    }
-                }
-                _ => panic!(), //FIXME (jc)
-            }
-        }
-
-        unsafe {
-            read(self.ctx, obj_index)
-        }
-    }
-
-    pub fn write_node(&mut self, node: &NodeRef) -> i32 {
-        unsafe fn write(ctx: *mut duk_context, data: &Node) {
-            match *data.value() {
-                Value::Null => {
-                    duk_push_null(ctx);
-                }
-                Value::Boolean(b) => {
-                    duk_push_boolean(ctx, b as i32);
-                }
-                Value::Integer(n) => {
-                    duk_push_number(ctx, n as f64);
-                }
-                Value::Float(n) => {
-                    duk_push_number(ctx, n);
-                }
-                Value::String(ref s) => {
-                    duk_push_lstring(ctx, s.as_ptr() as *const c_char, s.len());
-                }
-                Value::Binary(ref b) => {
-                    let p = duk_push_buffer_raw(ctx, b.len(), 1);
-                    memcpy(p as *mut u8, b.as_ptr(), b.len());
-                }
-                Value::Array(ref elems) => {
-                    let arr = duk_push_array(ctx);
-                    for (i, e) in elems.iter().enumerate() {
-                        write(ctx, &e.data());
-                        duk_put_prop_index(ctx, arr, i as u32);
-                    }
-                }
-                Value::Object(ref props) => {
-                    let obj = duk_push_object(ctx);
-                    for (k, e) in props.iter() {
-                        write(ctx, &e.data());
-                        let k = k.as_ref();
-                        duk_put_prop_lstring(ctx, obj, k.as_ptr() as *const c_char, k.len());
-                    }
-                }
-            }
-        }
-
-        unsafe {
-            let n = node.data();
-            write(self.ctx, &n);
-            duk_normalize_index(self.ctx, -1)
-        }
-    }
-
 }
 
-impl Drop for Engine {
+impl Drop for JsEngine {
     fn drop(&mut self) {
         if self.owner && !self.ctx.is_null() {
             unsafe {
@@ -677,49 +670,26 @@ impl Drop for Engine {
 }
 
 
-// FIXME (jc) add error handling (methods should return Result)
 pub trait ReadJs {
-    fn read_js(&mut self, engine: &mut Engine, obj_index: i32);
+    fn read_js(&mut self, engine: &mut JsEngine, obj_index: i32) -> Result<(), JsError>;
 
-    fn read_js_top(&mut self, engine: &mut Engine) {
+    fn read_js_top(&mut self, engine: &mut JsEngine) -> Result<(), JsError> {
         let idx = engine.normalize_index(-1);
-        self.read_js(engine, idx);
+        self.read_js(engine, idx)
     }
 }
 
-
-// FIXME (jc) add error handling (methods should return Result)
 pub trait WriteJs {
-    fn write_js(&self, engine: &mut Engine) -> i32;
+    fn write_js(&self, engine: &mut JsEngine) -> Result<(), JsError>;
 }
-
 
 pub trait CallJs {
-    fn call(&mut self, engine: &mut Engine, func_name: &str) -> i32;
+    fn call(&mut self, engine: &mut JsEngine, func_name: &str) -> Result<(), JsError>;
 }
 
-impl WriteJs for kg_diag::Position {
-    fn write_js(&self, e: &mut Engine) -> i32 {
-        let idx = e.push_object();
-        e.push_number(self.offset as f64);
-        e.put_prop_string(idx, "offset");
-        e.push_number(self.line as f64);
-        e.put_prop_string(idx, "line");
-        e.push_number(self.column as f64);
-        e.put_prop_string(idx, "column");
-        idx
-    }
-}
 
-impl ReadJs for kg_diag::Position {
-    fn read_js(&mut self, e: &mut Engine, obj_index: i32) {
-        e.get_prop_string(obj_index, "offset");
-        self.offset = e.get_number(-1) as usize;
-        e.get_prop_string(obj_index, "line");
-        self.line = e.get_number(-1) as u32;
-        e.get_prop_string(obj_index, "column");
-        self.column = e.get_number(-1) as u32;
-        e.pop_n(3);
-    }
-}
+#[cfg(feature = "serde")]
+mod ser;
 
+#[cfg(feature = "serde")]
+mod de;

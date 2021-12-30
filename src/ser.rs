@@ -303,7 +303,7 @@ mod tests {
             panic!("{}", err);
         });
         e.put_global_string("value");
-        e.eval(module_path!(), r#"var enc = Duktape.enc('jc', value, null, 2);"#);
+        e.eval( r#"var enc = Duktape.enc('jc', value, null, 2);"#).unwrap();
         e.get_global_string("enc");
         e.get_string(-1).to_string()
     }

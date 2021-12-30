@@ -1,9 +1,14 @@
+#pragma once
+
 #include "duktape.h"
-#include "duk_console.h"
 
-extern unsigned int duk_version();
-extern const char* duk_git_commit();
-extern const char* duk_git_describe();
-extern const char* duk_git_branch();
+typedef void (*duk_console_function) (void* udata, duk_uint_t fun, const char *msg, duk_size_t msg_len);
 
-extern duk_context* duk_create_context(void *heap_udata, duk_fatal_function fatal_handler);
+extern unsigned int duk_api_version();
+extern const char* duk_api_git_commit();
+extern const char* duk_api_git_describe();
+extern const char* duk_api_git_branch();
+
+extern void* duk_api_get_heap_udata(duk_context* ctx);
+
+extern void duk_api_console_init(duk_context *ctx, duk_console_function console_cb);

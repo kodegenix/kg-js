@@ -483,14 +483,14 @@ impl JsEngine {
     }
 
     #[inline]
-    pub fn read<O: ReadJs>(&mut self, obj: &mut O, obj_index: i32) -> Result<(), JsError> {
+    pub fn read<O: ReadJs>(&mut self, obj_index: i32) -> Result<O, JsError> {
         let obj_index = self.normalize_index(obj_index);
-        obj.read_js(self, obj_index)
+        O::read_js(self, obj_index)
     }
 
     #[inline]
-    pub fn read_top<O: ReadJs>(&mut self, obj: &mut O) -> Result<(), JsError> {
-        self.read(obj, -1)
+    pub fn read_top<O: ReadJs>(&mut self) -> Result<O, JsError> {
+        self.read( -1)
     }
 }
 
@@ -505,11 +505,14 @@ impl Drop for JsEngine {
 
 
 pub trait ReadJs {
-    fn read_js(&mut self, engine: &mut JsEngine, obj_index: i32) -> Result<(), JsError>;
+    fn read_js(engine: &mut JsEngine, obj_index: i32) -> Result<Self, JsError>
+        where Self: Sized;
 
-    fn read_js_top(&mut self, engine: &mut JsEngine) -> Result<(), JsError> {
+    fn read_js_top(engine: &mut JsEngine) -> Result<Self, JsError>
+        where Self: Sized
+    {
         let idx = engine.normalize_index(-1);
-        self.read_js(engine, idx)
+        Self::read_js(engine, idx)
     }
 }
 

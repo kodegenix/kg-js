@@ -3,8 +3,8 @@ use serde::de::*;
 
 
 impl<'de, T: Deserialize<'de>> ReadJs for T {
-    fn read_js(&mut self, e: &mut JsEngine, obj_index: i32) -> Result<(), JsError> {
-        Self::deserialize_in_place(JsEngineDeserializer { engine: e, index: obj_index,  len: 0 }, self)
+    fn read_js(e: &mut JsEngine, obj_index: i32) -> Result<Self, JsError> {
+        Self::deserialize(JsEngineDeserializer { engine: e, index: obj_index,  len: 0 })
     }
 }
 
@@ -227,8 +227,7 @@ mod tests {
         });
         e.put_global_string("value");
         e.get_global_string("value");
-        let mut val = T::default();
-        e.read_top(&mut val).unwrap_or_else(|err| {
+        let val: T = e.read_top().unwrap_or_else(|err| {
             panic!("{}", err);
         });
         assert_eq!(format!("{:?}", value), format!("{:?}", val));

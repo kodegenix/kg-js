@@ -168,6 +168,13 @@ impl JsEngine {
     }
 
     #[inline]
+    pub fn swap(&mut self, idx1: i32, idx2: i32) {
+        unsafe {
+            duk_swap(self.ctx, idx1, idx2);
+        }
+    }
+
+    #[inline]
     pub fn push_this(&mut self) {
         unsafe { duk_push_this(self.ctx); }
     }

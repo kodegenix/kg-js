@@ -142,6 +142,7 @@ extern "C" {
     pub fn duk_pop_1(ctx: *mut duk_context);
     pub fn duk_pop_2(ctx: *mut duk_context);
     pub fn duk_pop_n(ctx: *mut duk_context, n: i32);
+    pub fn duk_swap(ctx: *mut duk_context, idx1: i32, idx2: i32);
 
     pub fn duk_push_null(ctx: *mut duk_context);
     pub fn duk_push_boolean(ctx: *mut duk_context, val: i32);

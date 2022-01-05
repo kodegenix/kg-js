@@ -1,6 +1,5 @@
 use std::os::raw::*;
 use std::ffi::CStr;
-use std::alloc::Layout;
 use std::pin::Pin;
 use std::any::TypeId;
 use log::{log, Level};
@@ -590,22 +589,62 @@ impl From<u32> for ConsoleFunc {
     }
 }
 
+pub mod alloc {
+    use std::alloc::Layout;
+    use std::mem::size_of;
+
+    pub unsafe fn alloc(size: usize) -> *mut u8 {
+        let size = size + size_of::<usize>();
+        let layout = Layout::from_size_align_unchecked(size, size_of::<usize>());
+        let ptr = std::alloc::alloc(layout);
+        if ptr.is_null() {
+            std::alloc::handle_alloc_error(layout);
+        }
+        *(ptr as *mut usize) = size;
+        ptr.offset(size_of::<usize>() as isize)
+    }
+
+    pub unsafe fn realloc(ptr: *mut u8, size: usize) -> *mut u8 {
+        if ptr.is_null() {
+            alloc(size)
+        } else {
+            let size = size + size_of::<usize>();
+            let ptr = ptr.offset(-(size_of::<usize>() as isize));
+            let old_size = *(ptr as *mut usize);
+            let layout = Layout::from_size_align_unchecked(old_size, size_of::<usize>());
+            let ptr = std::alloc::realloc(ptr, layout, size);
+            if ptr.is_null() {
+                std::alloc::handle_alloc_error(layout);
+            }
+            *(ptr as *mut usize) = size;
+            ptr.offset(size_of::<usize>() as isize)
+        }
+    }
+
+    pub unsafe fn free(ptr: *mut u8) {
+        if ptr.is_null() {
+            return;
+        }
+        let ptr = ptr.offset(-(size_of::<usize>() as isize));
+        let size = *(ptr as *mut usize);
+        let layout = Layout::from_size_align_unchecked(size, size_of::<usize>());
+        std::alloc::dealloc(ptr, layout);
+    }
+}
+
 pub trait JsInterop: std::any::Any + std::fmt::Debug + 'static {
     fn call(&mut self, engine: &mut JsEngine, func_name: &str) -> Result<Return, JsError>;
 
     unsafe fn alloc(&mut self, size: usize) -> *mut u8 {
-        let layout = Layout::from_size_align_unchecked(size, std::mem::size_of::<usize>());
-        std::alloc::alloc(layout)
+        self::alloc::alloc(size)
     }
 
     unsafe fn realloc(&mut self, ptr: *mut u8, size: usize) -> *mut u8 {
-        let layout = Layout::from_size_align_unchecked(std::mem::size_of::<usize>(), std::mem::size_of::<usize>());
-        std::alloc::realloc(ptr, layout, size)
+        self::alloc::realloc(ptr, size)
     }
 
     unsafe fn free(&mut self, ptr: *mut u8) {
-        let layout = Layout::from_size_align_unchecked(std::mem::size_of::<usize>(), std::mem::size_of::<usize>());
-        std::alloc::dealloc(ptr, layout);
+        self::alloc::free(ptr)
     }
 
     fn fatal(&mut self, msg: &str) -> ! {

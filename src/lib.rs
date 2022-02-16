@@ -194,6 +194,11 @@ impl JsEngine {
     }
 
     #[inline]
+    pub fn push_undefined(&mut self) {
+        unsafe { duk_push_undefined(self.ctx) }
+    }
+
+    #[inline]
     pub fn push_i32(&mut self, value: i32) {
         unsafe { duk_push_int(self.ctx, value) }
     }

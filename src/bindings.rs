@@ -207,6 +207,7 @@ extern "C" {
     pub fn duk_enum(ctx: *mut duk_context, obj_index: i32, flags: u32);
     pub fn duk_next(ctx: *mut duk_context, enum_idx: i32, get_value: i32) -> i32;
 
+    pub fn duk_throw_raw(ctx: *mut duk_context);
     pub fn duk_fatal(ctx: *mut duk_context, err_code: i32, err_msg: *const c_char);
 }
 
@@ -267,7 +268,12 @@ pub extern "C" fn func_dispatch(ctx: *mut duk_context) -> i32 {
         let mut e = engine(udata);
         let r = match interop(udata).call(&mut e, name) {
             Ok(r) => r,
-            Err(_err) => Return::Error, //FIXME pass error message (requires changes in duktape)
+            Err(err) => {
+                let msg = format!("{err}");
+                duk_push_lstring(ctx, msg.as_ptr() as *const c_char, msg.len());
+                duk_throw_raw(ctx);
+                Return::Error
+            },
         };
         r as i32
     }

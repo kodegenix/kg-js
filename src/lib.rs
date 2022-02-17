@@ -415,6 +415,13 @@ impl JsEngine {
     }
 
     #[inline]
+    pub fn throw(&mut self) {
+        unsafe {
+            duk_throw_raw(self.ctx);
+        }
+    }
+
+    #[inline]
     pub fn eval(&mut self, code: &str) -> Result<(), JsError> {
         unsafe {
             if duk_eval_raw(self.ctx,

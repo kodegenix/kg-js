@@ -9,6 +9,7 @@ use smallbox::space::S8;
 
 mod bindings;
 use self::bindings::*;
+pub use self::bindings::DukType;
 
 
 const FUNC_NAME_PROP: &[u8] = b"name";
@@ -261,7 +262,7 @@ impl JsEngine {
     }
 
     #[inline]
-    fn get_type(&self, index: i32) -> DukType {
+    pub fn get_type(&self, index: i32) -> DukType {
         DukType::from(unsafe { duk_get_type(self.ctx, index) })
     }
 
@@ -418,6 +419,22 @@ impl JsEngine {
     pub fn throw(&mut self) {
         unsafe {
             duk_throw_raw(self.ctx);
+        }
+    }
+
+    #[inline]
+    pub fn push_context_dump(&mut self) {
+        unsafe {
+            duk_push_context_dump(self.ctx);
+        }
+    }
+
+    pub fn get_stack_dump(&mut self) -> String {
+        self.push_context_dump();
+        unsafe {
+            let dump = CStr::from_ptr(duk_to_string(self.ctx, -1)).to_string_lossy().to_string();
+            duk_pop(self.ctx);
+            dump
         }
     }
 

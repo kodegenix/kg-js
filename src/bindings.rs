@@ -175,7 +175,7 @@ extern "C" {
 
     pub fn duk_to_object(ctx: *mut duk_context, index: i32);
     pub fn duk_to_number(ctx: *mut duk_context, index: i32) -> f64;
-    pub fn duk_to_string(ctx: *mut duk_context, index: i32);
+    pub fn duk_to_string(ctx: *mut duk_context, index: i32) -> *const c_char;
 
     pub fn duk_get_boolean(ctx: *mut duk_context, index: i32) -> i32;
     pub fn duk_get_number(ctx: *mut duk_context, index: i32) -> f64;
@@ -209,6 +209,8 @@ extern "C" {
 
     pub fn duk_throw_raw(ctx: *mut duk_context);
     pub fn duk_fatal(ctx: *mut duk_context, err_code: i32, err_msg: *const c_char);
+
+    pub fn duk_push_context_dump(ctx: *mut duk_context);
 }
 
 

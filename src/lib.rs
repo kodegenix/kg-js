@@ -381,7 +381,7 @@ impl JsEngine {
     }
 
     #[inline]
-    fn get_length(&mut self, obj_index: i32) -> usize {
+    pub fn get_length(&mut self, obj_index: i32) -> usize {
         unsafe {
             duk_get_length(self.ctx, obj_index)
         }

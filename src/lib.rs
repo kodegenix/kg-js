@@ -14,6 +14,8 @@ pub use self::bindings::DukType;
 
 const FUNC_NAME_PROP: &[u8] = b"name";
 
+const DUK_EXEC_SUCCESS: i32 = 0;
+
 
 //FIXME embed javascript error type
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -53,6 +55,14 @@ struct Engine {
 pub struct JsEngine {
     ctx: *mut duk_context,
     inner: Pin<Box<Engine>>,
+}
+
+macro_rules! try_exec_success {
+    ($res:expr) => {
+        if $res != DUK_EXEC_SUCCESS {
+            return Err($res)
+        }
+    }
 }
 
 impl JsEngine {
@@ -416,6 +426,42 @@ impl JsEngine {
     }
 
     #[inline]
+    pub fn pcall(&mut self, nargs: usize) -> Result<(), i32> {
+        let res = unsafe {
+            duk_pcall(self.ctx, nargs as i32)
+        };
+        try_exec_success!(res);
+        Ok(())
+    }
+
+    #[inline]
+    pub fn pcall_method(&mut self, nargs: usize) -> Result<(), i32> {
+        let res = unsafe {
+            duk_pcall_method(self.ctx, nargs as i32)
+        };
+        try_exec_success!(res);
+        Ok(())
+    }
+
+    #[inline]
+    pub fn pcall_prop(&mut self, obj_index: i32, nargs: usize) -> Result<(), i32> {
+        let res = unsafe {
+            duk_pcall_prop(self.ctx, obj_index, nargs as i32)
+        };
+        try_exec_success!(res);
+        Ok(())
+    }
+
+    #[inline]
+    pub fn safe_to_lstring(&mut self, obj_index: i32) -> String {
+        unsafe {
+            let mut len: usize = 0;
+            let msg = duk_safe_to_lstring(self.ctx, obj_index, &mut len);
+            String::from(std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg as *const u8, len)))
+        }
+    }
+
+    #[inline]
     pub fn throw(&mut self) {
         unsafe {
             duk_throw_raw(self.ctx);
@@ -464,9 +510,7 @@ impl JsEngine {
                             code.as_ptr() as *const c_char,
                             code.len(),
                             1 | (DukCompileFlags::DUK_COMPILE_SAFE | DukCompileFlags::DUK_COMPILE_NOSOURCE).bits()) != 0 {
-                let mut len: usize = 0;
-                let msg = duk_safe_to_lstring(self.ctx, -1, &mut len);
-                let s = String::from(std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg as *const u8, len)));
+                let s = self.safe_to_lstring(-1);
                 duk_pop(self.ctx);
                 Err(JsError(s))
             } else {
@@ -482,9 +526,7 @@ impl JsEngine {
                                code.as_ptr() as *const c_char,
                                code.len(),
                                0 | (DukCompileFlags::DUK_COMPILE_NORESULT | DukCompileFlags::DUK_COMPILE_NOFILENAME).bits()) != 0 {
-                let mut len: usize = 0;
-                let msg = duk_safe_to_lstring(self.ctx, -1, &mut len);
-                let s = String::from(std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg as *const u8, len)));
+                let s = self.safe_to_lstring(-1);
                 duk_pop(self.ctx);
                 Err(JsError(s))
             } else {
@@ -501,9 +543,7 @@ impl JsEngine {
                                code.as_ptr() as *const c_char,
                                code.len(),
                                1 | DukCompileFlags::DUK_COMPILE_NORESULT.bits()) != 0 {
-                let mut len: usize = 0;
-                let msg = duk_safe_to_lstring(self.ctx, -1, &mut len);
-                let s = String::from(std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg as *const u8, len)));
+                let s = self.safe_to_lstring(-1);
                 duk_pop(self.ctx);
                 Err(JsError(s))
             } else {
@@ -722,71 +762,90 @@ mod de;
 
 
 #[cfg(test)]
-mod interop {
+mod tests {
     use super::*;
 
-    #[derive(Debug, Default)]
-    struct Interop {
-        stdout: String,
-        number: f64,
+    mod engine {
+        use super::*;
+        #[test]
+        fn test_to_lstring_safety(){
+            let mut engine = JsEngine::new();
+            engine.push_string("test");
+            let s = engine.safe_to_lstring(-1);
+            assert_eq!(s, "test");
+            engine.pop();
+            assert_eq!(s, "test");
+            drop(engine);
+            assert_eq!(s, "test");
+        }
     }
 
-    impl JsInterop for Interop {
-        fn call(&mut self, engine: &mut JsEngine, func_name: &str) -> Result<Return, JsError> {
-            match func_name {
-                "add" => {
-                    let a = engine.get_number(0);
-                    let b = engine.get_number(1);
-                    let res = a + b;
-                    engine.push_number(res);
-                    Ok(Return::Top)
+    mod interop {
+        use super::*;
+
+        #[derive(Debug, Default)]
+        struct Interop {
+            stdout: String,
+            number: f64,
+        }
+
+        impl JsInterop for Interop {
+            fn call(&mut self, engine: &mut JsEngine, func_name: &str) -> Result<Return, JsError> {
+                match func_name {
+                    "add" => {
+                        let a = engine.get_number(0);
+                        let b = engine.get_number(1);
+                        let res = a + b;
+                        engine.push_number(res);
+                        Ok(Return::Top)
+                    }
+                    "sub" => {
+                        let a = engine.get_number(0);
+                        let b = engine.get_number(1);
+                        let res = a - b;
+                        engine.push_number(res);
+                        Ok(Return::Top)
+                    }
+                    "put_number" => {
+                        let n = engine.get_number(0);
+                        self.number = n;
+                        Ok(Return::Undefined)
+                    }
+                    "get_number" => {
+                        engine.push_number(self.number);
+                        Ok(Return::Top)
+                    }
+                    _ => unreachable!()
                 }
-                "sub" => {
-                    let a = engine.get_number(0);
-                    let b = engine.get_number(1);
-                    let res = a - b;
-                    engine.push_number(res);
-                    Ok(Return::Top)
-                }
-                "put_number" => {
-                    let n = engine.get_number(0);
-                    self.number = n;
-                    Ok(Return::Undefined)
-                }
-                "get_number" => {
-                    engine.push_number(self.number);
-                    Ok(Return::Top)
-                }
-                _ => unreachable!()
+            }
+
+            fn console(&mut self, _func: ConsoleFunc, msg: &str) {
+                self.stdout.push_str(msg);
+                self.stdout.push('\n');
             }
         }
 
-        fn console(&mut self, _func: ConsoleFunc, msg: &str) {
-            self.stdout.push_str(msg);
-            self.stdout.push('\n');
+        fn init() -> JsEngine {
+            let mut e = JsEngine::with_interop(Interop::default());
+            e.put_global_function("add", 2);
+            e.put_global_function("sub", 2);
+            e.put_global_function("put_number", 1);
+            e.put_global_function("get_number", 0);
+            e
         }
-    }
 
-    fn init() -> JsEngine {
-        let mut e = JsEngine::with_interop(Interop::default());
-        e.put_global_function("add", 2);
-        e.put_global_function("sub", 2);
-        e.put_global_function("put_number", 1);
-        e.put_global_function("get_number", 0);
-        e
-    }
+        #[test]
+        fn call_rust_function() {
+            let mut e = init();
 
-    #[test]
-    fn call_rust_function() {
-        let mut e = init();
+            e.eval("var a = add(10, 11); put_number(a);").unwrap();
+            assert_eq!(21f64, e.interop_as::<Interop>().number);
 
-        e.eval("var a = add(10, 11); put_number(a);").unwrap();
-        assert_eq!(21f64, e.interop_as::<Interop>().number);
+            e.eval("var b = sub(12, 10); put_number(b);").unwrap();
+            assert_eq!(2f64, e.interop_as::<Interop>().number);
 
-        e.eval("var b = sub(12, 10); put_number(b);").unwrap();
-        assert_eq!(2f64, e.interop_as::<Interop>().number);
-
-        e.eval("put_number(123.5); console.log(get_number());").unwrap();
-        assert_eq!("123.5\n", e.interop_as::<Interop>().stdout);
+            e.eval("put_number(123.5); console.log(get_number());").unwrap();
+            assert_eq!("123.5\n", e.interop_as::<Interop>().stdout);
+        }
     }
 }

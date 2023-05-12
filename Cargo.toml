@@ -1,6 +1,6 @@
 [package]
 name = "kg-js"
-version = "0.8.0"
+version = "0.8.1"
 authors = ["jchlapinski <jakub.chlapinski@kodegenix.pl>"]
 description = """
 Wrapper for duktape JavaScript engine.
@@ -8,6 +8,8 @@ Wrapper for duktape JavaScript engine.
 readme = "README.md"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/kodegenix/kg-js"
+keywords = ["js", "javascript", "duktape", "bindings", "embeddable", "engine"]
+
 edition = "2021"
 build = "build.rs"
 

@@ -46,10 +46,10 @@ impl<'de, 'a> Deserializer<'de> for JsEngineDeserializer<'a> {
                     self.engine.pop();
                     res
                 } else {
-                    panic!(); //FIXME (jc)
+                    return Err(JsError(format!("Unimplemented javascript object type"))); //FIXME (jc)
                 }
             }
-            _ => panic!(), //FIXME (jc)
+            _ => return Err(JsError(format!("Unimplemented javascript object type"))) //FIXME (jc),
         }
     }
 
@@ -118,7 +118,12 @@ impl<'de, 'a> Deserializer<'de> for JsEngineDeserializer<'a> {
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
-        self.deserialize_any(visitor)
+        use super::DukType::{DUK_TYPE_NULL, DUK_TYPE_UNDEFINED};
+
+        match self.engine.get_type(self.index) {
+            DUK_TYPE_UNDEFINED | DUK_TYPE_NULL => visitor.visit_none(),
+            _ => visitor.visit_some(self)
+        }
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
@@ -247,6 +252,8 @@ mod tests {
         i8_field: i8,
         #[default(_code = "vec![1.0,2.0,3.0,7.5]")]
         arr_field: Vec<f64>,
+        optional1: Option<f64>,
+        optional2: Option<f64>
     }
 
     #[test]
@@ -254,6 +261,7 @@ mod tests {
         let mut p = TestStruct::default();
         p.char_field = 'B';
         p.i8_field = 44;
+        p.optional1 = Some(3.14);
         test_deserialize(&p);
     }
 }

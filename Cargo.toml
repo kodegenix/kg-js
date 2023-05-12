@@ -8,7 +8,7 @@ Wrapper for duktape JavaScript engine.
 readme = "README.md"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/kodegenix/kg-js"
-keywords = ["js", "javascript", "duktape", "bindings", "embeddable", "engine"]
+keywords = ["javascript", "duktape", "bindings", "embeddable", "engine"]
 
 edition = "2021"
 build = "build.rs"

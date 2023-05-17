@@ -755,10 +755,10 @@ impl JsInterop for DefaultInterop {
 
 
 #[cfg(feature = "serde")]
-mod ser;
+pub mod ser;
 
 #[cfg(feature = "serde")]
-mod de;
+pub mod de;
 
 
 #[cfg(test)]

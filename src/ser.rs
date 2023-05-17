@@ -20,9 +20,15 @@ impl serde::de::Error for JsError {
 }
 
 
-struct JsEngineSerializer<'a> {
+pub struct JsEngineSerializer<'a> {
     engine: &'a mut JsEngine,
     index: u32,
+}
+
+impl <'a> JsEngineSerializer<'a> {
+    pub fn new(engine: &'a mut JsEngine) -> Self {
+        Self { engine, index: 0 }
+    }
 }
 
 impl<'a> Serializer for JsEngineSerializer<'a> {

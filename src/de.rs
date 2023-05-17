@@ -4,14 +4,20 @@ use serde::de::*;
 
 impl<'de, T: Deserialize<'de>> ReadJs for T {
     fn read_js(e: &mut JsEngine, obj_index: i32) -> Result<Self, JsError> {
-        Self::deserialize(JsEngineDeserializer { engine: e, index: obj_index,  len: 0 })
+        Self::deserialize(JsEngineDeserializer::new(e, obj_index))
     }
 }
 
-struct JsEngineDeserializer<'a> {
+pub struct JsEngineDeserializer<'a> {
     engine: &'a mut JsEngine,
     index: i32,
     len: usize,
+}
+
+impl <'a> JsEngineDeserializer<'a> {
+    pub fn new(engine: &'a mut JsEngine, index: i32) -> Self {
+        Self { engine, index, len: 0 }
+    }
 }
 
 impl<'de, 'a> Deserializer<'de> for JsEngineDeserializer<'a> {

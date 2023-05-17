@@ -1,6 +1,6 @@
 [package]
 name = "kg-js"
-version = "0.8.2"
+version = "0.8.3"
 authors = ["jchlapinski <jakub.chlapinski@kodegenix.pl>", "Wiktor Sikora <wiktorsikora7@gmail.com>"]
 description = """
 Wrapper for duktape JavaScript engine.

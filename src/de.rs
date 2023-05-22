@@ -31,7 +31,7 @@ impl<'de, 'a> Deserializer<'de> for JsEngineDeserializer<'a> {
             DUK_TYPE_BOOLEAN => visitor.visit_bool(self.engine.get_boolean(self.index)),
             DUK_TYPE_NUMBER => {
                 let n = self.engine.get_number(self.index);
-                if n.is_normal() && (n.trunc() - n).abs() < f64::EPSILON {
+                if n.is_finite() && (n.trunc() - n).abs() < f64::EPSILON {
                     visitor.visit_i64(n as i64)
                 } else {
                     visitor.visit_f64(n)
@@ -244,6 +244,16 @@ mod tests {
         assert_eq!(format!("{:?}", value), format!("{:?}", val));
     }
 
+    fn deserialize_expr<'a, T: std::fmt::Debug + Deserialize<'a>>(expr: &str) -> T {
+        let mut e = JsEngine::new();
+        e.eval(expr).unwrap();
+        e.get_global_string("value");
+        let val: T = e.read_top().unwrap_or_else(|err| {
+            panic!("{}", err);
+        });
+        val
+    }
+
     fn test_deserialize<'a, T: std::fmt::Debug + Serialize + Deserialize<'a> + Default>(value: &T) {
         deserialize(value);
     }
@@ -269,5 +279,40 @@ mod tests {
         p.i8_field = 44;
         p.optional1 = Some(3.14);
         test_deserialize(&p);
+    }
+
+    #[test]
+    fn deserialize_zero() {
+        #[derive(Debug, Deserialize)]
+        struct TestStruct {
+            float_field: f64,
+            int_field: i64,
+        }
+
+        //language=JavaScript
+        let val: TestStruct = deserialize_expr(r#"
+    value = {
+        float_field: 0,
+        int_field: 0
+    };
+"#);
+        assert_eq!(val.float_field, 0.0);
+        assert_eq!(val.int_field, 0);
+    }
+
+    #[test]
+    fn deserialize_nan() {
+        #[derive(Debug, Deserialize)]
+        struct TestStruct {
+            float_field: f64,
+        }
+
+        //language=JavaScript
+        let val: TestStruct = deserialize_expr(r#"
+    value = {
+        float_field: NaN
+    };
+"#);
+        assert!(val.float_field.is_nan());
     }
 }

@@ -133,7 +133,7 @@ impl<'de, 'a> Deserializer<'de> for JsEngineDeserializer<'a> {
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
-        self.deserialize_any(visitor)
+        visitor.visit_unit()
     }
 
     fn deserialize_unit_struct<V>(self, _name: &'static str, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
@@ -269,7 +269,8 @@ mod tests {
         #[default(_code = "vec![1.0,2.0,3.0,7.5]")]
         arr_field: Vec<f64>,
         optional1: Option<f64>,
-        optional2: Option<f64>
+        optional2: Option<f64>,
+        unit: ()
     }
 
     #[test]
@@ -314,5 +315,15 @@ mod tests {
     };
 "#);
         assert!(val.float_field.is_nan());
+    }
+
+    #[test]
+    fn deserialize_unit() {
+        //language=JavaScript
+        let _val: () = deserialize_expr(r#"
+    value = {
+        test: "asfads"
+    };
+"#);
     }
 }

@@ -26,19 +26,13 @@ pub struct JsEngine {
 
 
 impl JsEngine {
-    pub (crate) fn from_parts(ctx: DukContext, inner: Pin<Box<Engine>>) -> Self {
-        Self {
-            ctx,
-            inner,
-        }
-    }
     pub fn new() -> Self {
         Self::with_interop(NoopInterop)
     }
 
     pub fn with_interop<I: JsInterop>(interop: I) -> Self {
         let mut e = JsEngine {
-            ctx: unsafe {DukContext::from_ptr(std::ptr::null_mut())},
+            ctx: unsafe { DukContext::from_ptr(std::ptr::null_mut()) },
             inner: Box::pin(Engine {
                 ctx: std::ptr::null_mut(),
                 interop: smallbox!(interop),
@@ -63,7 +57,7 @@ impl JsEngine {
         }
 
         unsafe {
-            e.ctx.set_ctx(ctx);
+            e.ctx.set_ptr(ctx);
             e.inner.as_mut().get_unchecked_mut().ctx = ctx;
         }
         e

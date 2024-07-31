@@ -9,6 +9,7 @@ macro_rules! try_exec_success {
     }
 }
 
+/// Wrapper for Duktape context
 #[derive(Debug, Clone, Copy)]
 pub struct DukContext {
     pub (crate) ctx: *mut duk_context,
@@ -19,7 +20,7 @@ impl DukContext {
         Self { ctx }
     }
 
-    pub (crate) unsafe fn set_ctx(&mut self, ctx: *mut duk_context) {
+    pub (crate) unsafe fn set_ptr(&mut self, ctx: *mut duk_context) {
         self.ctx = ctx;
     }
 
@@ -550,6 +551,26 @@ mod tests {
 
         drop(new_ctx);
         engine.pop();
+        assert!(engine.get_stack_dump().contains("ctx: top=0"));
+    }
+
+    #[test]
+    fn test_nested_push_thread() {
+        let mut engine = JsEngine::new();
+        let new_idx = engine.push_thread();
+        let mut new_ctx = engine.get_context(new_idx).unwrap();
+
+        let nested_id = new_ctx.push_thread();
+        let mut nested_ctx = new_ctx.get_context(nested_id).unwrap();
+        nested_ctx.push_string("test");
+
+        assert_eq!(nested_ctx.get_string(-1), "test");
+
+        drop(nested_ctx);
+        drop(new_ctx);
+
+        engine.pop();
+
         assert!(engine.get_stack_dump().contains("ctx: top=0"));
     }
 

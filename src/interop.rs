@@ -1,9 +1,9 @@
-use crate::{ConsoleFunc, JsEngine, JsError, Return};
+use crate::{ConsoleFunc, DukContext, JsError, Return};
 use log::log;
 use std::any::TypeId;
 
 pub trait JsInterop: std::any::Any + std::fmt::Debug + 'static {
-    fn call(&mut self, engine: &mut JsEngine, func_name: &str) -> Result<Return, JsError>;
+    fn call(&mut self, engine: &mut DukContext, func_name: &str) -> Result<Return, JsError>;
 
     unsafe fn alloc(&mut self, size: usize) -> *mut u8 {
         super::alloc::alloc(size)
@@ -49,13 +49,14 @@ impl dyn JsInterop {
 pub struct NoopInterop;
 
 impl JsInterop for NoopInterop {
-    fn call(&mut self, _engine: &mut JsEngine, _func_name: &str) -> Result<Return, JsError> {
+    fn call(&mut self, _ctx: &mut DukContext, _func_name: &str) -> Result<Return, JsError> {
         Ok(Return::Undefined)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::JsEngine;
     use super::*;
 
     #[derive(Debug, Default)]
@@ -65,29 +66,29 @@ mod tests {
     }
 
     impl JsInterop for Interop {
-        fn call(&mut self, engine: &mut JsEngine, func_name: &str) -> Result<Return, JsError> {
+        fn call(&mut self, ctx: &mut DukContext, func_name: &str) -> Result<Return, JsError> {
             match func_name {
                 "add" => {
-                    let a = engine.get_number(0);
-                    let b = engine.get_number(1);
+                    let a = ctx.get_number(0);
+                    let b = ctx.get_number(1);
                     let res = a + b;
-                    engine.push_number(res);
+                    ctx.push_number(res);
                     Ok(Return::Top)
                 }
                 "sub" => {
-                    let a = engine.get_number(0);
-                    let b = engine.get_number(1);
+                    let a = ctx.get_number(0);
+                    let b = ctx.get_number(1);
                     let res = a - b;
-                    engine.push_number(res);
+                    ctx.push_number(res);
                     Ok(Return::Top)
                 }
                 "put_number" => {
-                    let n = engine.get_number(0);
+                    let n = ctx.get_number(0);
                     self.number = n;
                     Ok(Return::Undefined)
                 }
                 "get_number" => {
-                    engine.push_number(self.number);
+                    ctx.push_number(self.number);
                     Ok(Return::Top)
                 }
                 _ => unreachable!(),
@@ -122,5 +123,58 @@ mod tests {
         e.eval("put_number(123.5); console.log(get_number());")
             .unwrap();
         assert_eq!("123.5\n", e.interop_as::<Interop>().stdout);
+    }
+
+    #[test]
+    fn test_changed_duk_context() {
+        let mut e = init();
+
+        //language=javascript
+        e.eval("typeof add === 'function'").unwrap();
+        assert!(e.get_boolean(-1));
+        e.pop();
+
+        let new_idx = e.push_thread_new_globalenv();
+        let mut ctx = e.get_context(new_idx).unwrap();
+
+        // This function should not be available in the new context
+        //language=javascript
+        ctx.eval("typeof add === 'undefined'").unwrap();
+
+        // Register the function in the new context
+        ctx.put_global_function("add", 2);
+
+        // Check if the function is available in the new context
+        //language=javascript
+        ctx.eval("add(2, 3)").unwrap();
+        assert_eq!(5.0, ctx.get_number(-1));
+
+        // Create function in the new context
+        //language=javascript
+        ctx.eval("var f = function (a, b) { return a * b; }; f").unwrap();
+        ctx.put_global_string("multiply");
+
+        // Check if the function is available in the new context
+        //language=javascript
+        ctx.eval("multiply(2, 5)").unwrap();
+        assert_eq!(10.0, ctx.get_number(-1));
+
+        // Drop context and remove it from the stack
+        drop(ctx);
+        e.pop();
+
+        // Check if the function is still available in the original context
+        //language=javascript
+        e.eval("add(2, 3)").unwrap();
+        assert_eq!(5.0, e.get_number(-1));
+        e.pop();
+
+        // Check if multiply function is not available in the original context
+        //language=javascript
+        e.eval("typeof multiply === 'undefined'").unwrap();
+        assert!(e.get_boolean(-1));
+        e.pop();
+
+        assert!(e.get_stack_dump().contains("ctx: top=0"));
     }
 }

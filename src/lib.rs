@@ -1,7 +1,6 @@
 use std::ffi::CStr;
 use std::ops::{Deref};
 use std::os::raw::*;
-use std::pin::Pin;
 
 mod bindings;
 use self::bindings::*;

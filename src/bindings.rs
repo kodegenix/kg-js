@@ -1,4 +1,3 @@
-use std::mem::ManuallyDrop;
 use bitflags::bitflags;
 use crate::ctx::DukContext;
 use super::*;
@@ -229,13 +228,6 @@ unsafe fn interop<'a>(udata: *mut c_void) -> &'a mut InteropRef {
     &mut (*(udata as *mut Engine)).interop
 }
 
-#[inline(always)]
-unsafe fn engine(udata: *mut c_void) -> ManuallyDrop<JsEngine> {
-    let inner = Pin::new_unchecked(Box::from_raw(udata as *mut Engine));
-    let ctx = inner.ctx;
-    ManuallyDrop::new(JsEngine::from_parts(DukContext::from_ptr(ctx), inner))
-}
-
 pub extern "C" fn alloc_func(udata: *mut c_void, size: usize) -> *mut c_void {
     unsafe {
         interop(udata).alloc(size) as *mut c_void
@@ -274,8 +266,8 @@ pub extern "C" fn func_dispatch(ctx: *mut duk_context) -> i32 {
         let name = str::from_utf8_unchecked(slice::from_raw_parts(ptr, len));
         duk_pop_2(ctx);
         let udata = duk_api_get_heap_udata(ctx);
-        let mut e = engine(udata);
-        let r = match interop(udata).call(&mut e, name) {
+        let mut duk_ctx = DukContext::from_ptr(ctx);
+        let r = match interop(udata).call(&mut duk_ctx, name) {
             Ok(r) => r,
             Err(err) => {
                 let msg = format!("{err}");

@@ -3,20 +3,20 @@ use serde::de::*;
 
 
 impl<'de, T: Deserialize<'de>> ReadJs for T {
-    fn read_js(e: &mut JsEngine, obj_index: i32) -> Result<Self, JsError> {
-        Self::deserialize(JsEngineDeserializer::new(e, obj_index))
+    fn read_js(ctx: &mut DukContext, obj_index: i32) -> Result<Self, JsError> {
+        Self::deserialize(JsEngineDeserializer::new(ctx, obj_index))
     }
 }
 
 pub struct JsEngineDeserializer<'a> {
-    engine: &'a mut JsEngine,
+    ctx: &'a mut DukContext,
     index: i32,
     len: usize,
 }
 
 impl <'a> JsEngineDeserializer<'a> {
-    pub fn new(engine: &'a mut JsEngine, index: i32) -> Self {
-        Self { engine, index, len: 0 }
+    pub fn new(ctx: &'a mut DukContext, index: i32) -> Self {
+        Self { ctx, index, len: 0 }
     }
 }
 
@@ -26,30 +26,30 @@ impl<'de, 'a> Deserializer<'de> for JsEngineDeserializer<'a> {
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
         use super::DukType::*;
 
-        match self.engine.get_type(self.index) {
+        match self.ctx.get_type(self.index) {
             DUK_TYPE_UNDEFINED | DUK_TYPE_NULL => visitor.visit_none(),
-            DUK_TYPE_BOOLEAN => visitor.visit_bool(self.engine.get_boolean(self.index)),
+            DUK_TYPE_BOOLEAN => visitor.visit_bool(self.ctx.get_boolean(self.index)),
             DUK_TYPE_NUMBER => {
-                let n = self.engine.get_number(self.index);
+                let n = self.ctx.get_number(self.index);
                 if n.is_finite() && (n.trunc() - n).abs() < f64::EPSILON {
                     visitor.visit_i64(n as i64)
                 } else {
                     visitor.visit_f64(n)
                 }
             }
-            DUK_TYPE_STRING => visitor.visit_str(self.engine.get_string(self.index)),
-            DUK_TYPE_BUFFER => visitor.visit_bytes(self.engine.get_buffer(self.index)),
+            DUK_TYPE_STRING => visitor.visit_str(self.ctx.get_string(self.index)),
+            DUK_TYPE_BUFFER => visitor.visit_bytes(self.ctx.get_buffer(self.index)),
             DUK_TYPE_OBJECT => {
-                if self.engine.is_array(self.index) {
-                    let len = self.engine.get_length( self.index);
-                    self.engine.enum_indices(self.index);
-                    let res = visitor.visit_seq(JsEngineDeserializer { engine: self.engine, index: -1, len });
-                    self.engine.pop();
+                if self.ctx.is_array(self.index) {
+                    let len = self.ctx.get_length( self.index);
+                    self.ctx.enum_indices(self.index);
+                    let res = visitor.visit_seq(JsEngineDeserializer { ctx: self.ctx, index: -1, len });
+                    self.ctx.pop();
                     res
-                } else if self.engine.is_pure_object(self.index) {
-                    self.engine.enum_keys(self.index);
-                    let res = visitor.visit_map(JsEngineDeserializer { engine: self.engine, index: -1, len: 0 });
-                    self.engine.pop();
+                } else if self.ctx.is_pure_object(self.index) {
+                    self.ctx.enum_keys(self.index);
+                    let res = visitor.visit_map(JsEngineDeserializer { ctx: self.ctx, index: -1, len: 0 });
+                    self.ctx.pop();
                     res
                 } else {
                     return Err(JsError(format!("Unimplemented javascript object type"))); //FIXME (jc)
@@ -126,7 +126,7 @@ impl<'de, 'a> Deserializer<'de> for JsEngineDeserializer<'a> {
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: Visitor<'de> {
         use super::DukType::{DUK_TYPE_NULL, DUK_TYPE_UNDEFINED};
 
-        match self.engine.get_type(self.index) {
+        match self.ctx.get_type(self.index) {
             DUK_TYPE_UNDEFINED | DUK_TYPE_NULL => visitor.visit_none(),
             _ => visitor.visit_some(self)
         }
@@ -181,24 +181,24 @@ impl<'de, 'a> MapAccess<'de> for JsEngineDeserializer<'a> {
     type Error = JsError;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error> where K: DeserializeSeed<'de> {
-        if self.engine.next(-1) {
-            Ok(Some(seed.deserialize(JsEngineDeserializer { engine: self.engine, index: -2, len: 0 })?))
+        if self.ctx.next(-1) {
+            Ok(Some(seed.deserialize(JsEngineDeserializer { ctx: self.ctx, index: -2, len: 0 })?))
         } else {
             Ok(None)
         }
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error> where V: DeserializeSeed<'de> {
-        let res = seed.deserialize(JsEngineDeserializer { engine: self.engine, index: -1, len: 0 });
-        self.engine.pop_n(2);
+        let res = seed.deserialize(JsEngineDeserializer { ctx: self.ctx, index: -1, len: 0 });
+        self.ctx.pop_n(2);
         res
     }
 
     fn next_entry_seed<K, V>(&mut self, kseed: K, vseed: V) -> Result<Option<(K::Value, V::Value)>, Self::Error> where K: DeserializeSeed<'de>, V: DeserializeSeed<'de> {
-        if self.engine.next(-1) {
-            let k = kseed.deserialize(JsEngineDeserializer { engine: self.engine, index: -2, len: 0 })?;
-            let v = vseed.deserialize(JsEngineDeserializer { engine: self.engine, index: -1, len: 0 })?;
-            self.engine.pop_n(2);
+        if self.ctx.next(-1) {
+            let k = kseed.deserialize(JsEngineDeserializer { ctx: self.ctx, index: -2, len: 0 })?;
+            let v = vseed.deserialize(JsEngineDeserializer { ctx: self.ctx, index: -1, len: 0 })?;
+            self.ctx.pop_n(2);
             Ok(Some((k, v)))
         } else {
             Ok(None)
@@ -210,9 +210,9 @@ impl<'de, 'a> SeqAccess<'de> for JsEngineDeserializer<'a> {
     type Error = JsError;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error> where T: DeserializeSeed<'de> {
-        if self.engine.next(-1) {
-            let v = seed.deserialize(JsEngineDeserializer { engine: self.engine, index: -1, len: 0 })?;
-            self.engine.pop_n(2);
+        if self.ctx.next(-1) {
+            let v = seed.deserialize(JsEngineDeserializer { ctx: self.ctx, index: -1, len: 0 })?;
+            self.ctx.pop_n(2);
             Ok(Some(v))
         } else {
             Ok(None)

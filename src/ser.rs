@@ -2,8 +2,8 @@ use super::*;
 use serde::ser::*;
 
 impl<T: Serialize> WriteJs for T {
-    fn write_js(&self, e: &mut JsEngine) -> Result<(), JsError> {
-        self.serialize(JsEngineSerializer { engine: e, index: 0 })
+    fn write_js(&self, ctx: &mut DukContext) -> Result<(), JsError> {
+        self.serialize(JsEngineSerializer { ctx, index: 0 })
     }
 }
 
@@ -21,13 +21,13 @@ impl serde::de::Error for JsError {
 
 
 pub struct JsEngineSerializer<'a> {
-    engine: &'a mut JsEngine,
+    ctx: &'a mut DukContext,
     index: u32,
 }
 
 impl <'a> JsEngineSerializer<'a> {
-    pub fn new(engine: &'a mut JsEngine) -> Self {
-        Self { engine, index: 0 }
+    pub fn new(ctx: &'a mut DukContext) -> Self {
+        Self { ctx, index: 0 }
     }
 }
 
@@ -43,78 +43,78 @@ impl<'a> Serializer for JsEngineSerializer<'a> {
     type SerializeStructVariant = Self;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_boolean(v);
+        self.ctx.push_boolean(v);
         Ok(())
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_i32(v as i32);
+        self.ctx.push_i32(v as i32);
         Ok(())
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_i32(v as i32);
+        self.ctx.push_i32(v as i32);
         Ok(())
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_i32(v);
+        self.ctx.push_i32(v);
         Ok(())
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_number(v as f64);
+        self.ctx.push_number(v as f64);
         Ok(())
     }
 
     fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_u32(v as u32);
+        self.ctx.push_u32(v as u32);
         Ok(())
     }
 
     fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_u32(v as u32);
+        self.ctx.push_u32(v as u32);
         Ok(())
     }
 
     fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_u32(v as u32);
+        self.ctx.push_u32(v as u32);
         Ok(())
     }
 
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_number(v as f64);
+        self.ctx.push_number(v as f64);
         Ok(())
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_number(v as f64);
+        self.ctx.push_number(v as f64);
         Ok(())
     }
 
     fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_number(v);
+        self.ctx.push_number(v);
         Ok(())
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
         let mut tmp = [0; 4];
-        self.engine.push_string(v.encode_utf8(&mut tmp));
+        self.ctx.push_string(v.encode_utf8(&mut tmp));
         Ok(())
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_string(v);
+        self.ctx.push_string(v);
         Ok(())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_ext_buffer(v);
+        self.ctx.push_ext_buffer(v);
         Ok(())
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_null();
+        self.ctx.push_null();
         Ok(())
     }
 
@@ -123,17 +123,17 @@ impl<'a> Serializer for JsEngineSerializer<'a> {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_null();
+        self.ctx.push_null();
         Ok(())
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_null();
+        self.ctx.push_null();
         Ok(())
     }
 
     fn serialize_unit_variant(self, _name: &'static str, _variant_index: u32, variant: &'static str) -> Result<Self::Ok, Self::Error> {
-        self.engine.push_string(variant);
+        self.ctx.push_string(variant);
         Ok(())
     }
 
@@ -142,52 +142,52 @@ impl<'a> Serializer for JsEngineSerializer<'a> {
     }
 
     fn serialize_newtype_variant<T: ?Sized>(self, _name: &'static str, _variant_index: u32, variant: &'static str, value: &T) -> Result<Self::Ok, Self::Error> where T: Serialize {
-        self.engine.push_object();
-        value.serialize(JsEngineSerializer { engine: self.engine, index: 0 })?;
-        self.engine.put_prop_string(-2, variant);
+        self.ctx.push_object();
+        value.serialize(JsEngineSerializer { ctx: self.ctx, index: 0 })?;
+        self.ctx.put_prop_string(-2, variant);
         Ok(())
     }
 
     fn serialize_seq(mut self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        self.engine.push_array();
+        self.ctx.push_array();
         self.index = 0;
         Ok(self)
     }
 
     fn serialize_tuple(mut self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        self.engine.push_array();
+        self.ctx.push_array();
         self.index = 0;
         Ok(self)
     }
 
     fn serialize_tuple_struct(mut self, _name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        self.engine.push_array();
+        self.ctx.push_array();
         self.index = 0;
         Ok(self)
     }
 
     fn serialize_tuple_variant(mut self, _name: &'static str, _variant_index: u32, variant: &'static str, _len: usize) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        self.engine.push_object();
-        self.engine.push_string(variant);
-        self.engine.push_array();
+        self.ctx.push_object();
+        self.ctx.push_string(variant);
+        self.ctx.push_array();
         self.index = 0;
         Ok(self)
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        self.engine.push_object();
+        self.ctx.push_object();
         Ok(self)
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct, Self::Error> {
-        self.engine.push_object();
+        self.ctx.push_object();
         Ok(self)
     }
 
     fn serialize_struct_variant(self, _name: &'static str, _variant_index: u32, variant: &'static str, _len: usize) -> Result<Self::SerializeStructVariant, Self::Error> {
-        self.engine.push_object();
-        self.engine.push_string(variant);
-        self.engine.push_object();
+        self.ctx.push_object();
+        self.ctx.push_string(variant);
+        self.ctx.push_object();
         Ok(self)
     }
 }
@@ -197,8 +197,8 @@ impl<'a> SerializeSeq for JsEngineSerializer<'a> {
     type Error = JsError;
 
     fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> where T: Serialize {
-        value.serialize(JsEngineSerializer { engine: self.engine, index: 0 })?;
-        self.engine.put_prop_index(-2, self.index);
+        value.serialize(JsEngineSerializer { ctx: self.ctx, index: 0 })?;
+        self.ctx.put_prop_index(-2, self.index);
         self.index += 1;
         Ok(())
     }
@@ -230,7 +230,7 @@ impl<'a> SerializeTupleVariant for JsEngineSerializer<'a> {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        self.engine.put_prop(-3);
+        self.ctx.put_prop(-3);
         Ok(())
     }
 }
@@ -253,8 +253,8 @@ impl<'a> SerializeStruct for JsEngineSerializer<'a> {
     type Error = JsError;
 
     fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error> where T: Serialize {
-        value.serialize(JsEngineSerializer { engine: self.engine, index: 0 })?;
-        self.engine.put_prop_string(-2, key);
+        value.serialize(JsEngineSerializer { ctx: self.ctx, index: 0 })?;
+        self.ctx.put_prop_string(-2, key);
         Ok(())
     }
 
@@ -272,7 +272,7 @@ impl<'a> SerializeStructVariant for JsEngineSerializer<'a> {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        self.engine.put_prop(-3);
+        self.ctx.put_prop(-3);
         Ok(())
     }
 }
@@ -282,12 +282,12 @@ impl<'a> SerializeMap for JsEngineSerializer<'a> {
     type Error = JsError;
 
     fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<(), Self::Error> where T: Serialize {
-        key.serialize(JsEngineSerializer { engine: self.engine, index: 0 })
+        key.serialize(JsEngineSerializer { ctx: self.ctx, index: 0 })
     }
 
     fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> where T: Serialize {
-        value.serialize(JsEngineSerializer { engine: self.engine, index: 0 })?;
-        self.engine.put_prop(-3);
+        value.serialize(JsEngineSerializer { ctx: self.ctx, index: 0 })?;
+        self.ctx.put_prop(-3);
         Ok(())
     }
 

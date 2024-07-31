@@ -1,5 +1,6 @@
 use std::mem::ManuallyDrop;
 use bitflags::bitflags;
+use crate::ctx::DukContext;
 use super::*;
 
 bitflags! {
@@ -50,6 +51,12 @@ bitflags! {
         const DUK_BUF_FLAG_DYNAMIC              = (1 << 0);    /* internal flag: dynamic buffer */
         const DUK_BUF_FLAG_EXTERNAL             = (1 << 1);    /* internal flag: external buffer */
         const DUK_BUF_FLAG_NOZERO               = (1 << 2);    /* internal flag: don't zero allocated buffer */
+    }
+}
+
+bitflags! {
+    pub struct DukThreadFlags: u32 {
+        const DUK_THREAD_NEW_GLOBAL_ENV              = (1 << 0);    /* create a new global environment */
     }
 }
 
@@ -159,11 +166,14 @@ extern "C" {
     pub fn duk_push_c_lightfunc(ctx: *mut duk_context, func: Option<duk_c_function>, nargs: i32, length: i32, magic: i32);
     pub fn duk_push_current_function(ctx: *mut duk_context);
     pub fn duk_push_this(ctx: *mut duk_context);
+    pub fn duk_push_thread_raw(ctx: *mut duk_context, flags: u32) -> i32;
 
     pub fn duk_config_buffer(ctx: *mut duk_context, index: i32, ptr: *mut c_void, len: usize);
 
     pub fn duk_get_type(ctx: *mut duk_context, index: i32) -> i32;
     pub fn duk_get_length(ctx: *mut duk_context, index: i32) -> usize;
+    pub fn duk_get_context(ctx: *mut duk_context, index: i32) -> *mut duk_context;
+    pub fn duk_get_context_default(ctx: *mut duk_context, index: i32, def_value: *mut duk_context) -> *mut duk_context;
     pub fn duk_samevalue(ctx: *mut duk_context, index1: i32, index2: i32) -> i32;
 
     pub fn duk_is_array(ctx: *mut duk_context, index: i32) -> i32;
@@ -223,10 +233,7 @@ unsafe fn interop<'a>(udata: *mut c_void) -> &'a mut InteropRef {
 unsafe fn engine(udata: *mut c_void) -> ManuallyDrop<JsEngine> {
     let inner = Pin::new_unchecked(Box::from_raw(udata as *mut Engine));
     let ctx = inner.ctx;
-    ManuallyDrop::new(JsEngine {
-        ctx,
-        inner,
-    })
+    ManuallyDrop::new(JsEngine::from_parts(DukContext::from_ptr(ctx), inner))
 }
 
 pub extern "C" fn alloc_func(udata: *mut c_void, size: usize) -> *mut c_void {

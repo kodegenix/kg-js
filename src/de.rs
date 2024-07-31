@@ -52,10 +52,10 @@ impl<'de, 'a> Deserializer<'de> for JsEngineDeserializer<'a> {
                     self.ctx.pop();
                     res
                 } else {
-                    return Err(JsError(format!("Unimplemented javascript object type"))); //FIXME (jc)
+                    return Err(JsError::from(format!("Unimplemented javascript object type"))); //FIXME (jc)
                 }
             }
-            _ => return Err(JsError(format!("Unimplemented javascript object type"))) //FIXME (jc),
+            _ => return Err(JsError::from(format!("Unimplemented javascript object type"))) //FIXME (jc),
         }
     }
 

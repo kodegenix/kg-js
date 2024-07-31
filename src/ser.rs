@@ -9,13 +9,13 @@ impl<T: Serialize> WriteJs for T {
 
 impl serde::ser::Error for JsError {
     fn custom<T>(msg: T) -> Self where T: std::fmt::Display {
-        Self(msg.to_string())
+        Self::from(msg.to_string())
     }
 }
 
 impl serde::de::Error for JsError {
     fn custom<T>(msg: T) -> Self where T: std::fmt::Display {
-        Self(msg.to_string())
+        Self::from(msg.to_string())
     }
 }
 

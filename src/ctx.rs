@@ -23,7 +23,6 @@ impl DukContext {
         self.ctx = ctx;
     }
 
-
     #[inline]
     pub fn normalize_index(&self, index: i32) -> i32 {
         unsafe {
@@ -234,9 +233,12 @@ impl DukContext {
         unsafe { duk_get_boolean(self.ctx, index) != 0 }
     }
 
-    pub fn get_context(&self, index: i32) -> DukContextGuard {
+    pub fn get_context(&self, index: i32) -> Result<DukContextGuard, JsError> {
         let new_ctx = unsafe { duk_get_context(self.ctx, index) };
-        DukContextGuard::new(unsafe { DukContext::from_ptr(new_ctx) })
+        if new_ctx.is_null() {
+            return Err(JsError::from(format!("could not get context from index {}", index)));
+        }
+        Ok(DukContextGuard::new(unsafe { DukContext::from_ptr(new_ctx) }))
     }
 
     #[inline]
@@ -397,7 +399,7 @@ impl DukContext {
                 let msg = duk_safe_to_lstring(self.ctx, -1, &mut len);
                 let s = String::from(std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg as *const u8, len)));
                 duk_pop(self.ctx);
-                Err(JsError(s))
+                Err(JsError::from(s))
             } else {
                 Ok(())
             }
@@ -414,7 +416,7 @@ impl DukContext {
                             1 | (DukCompileFlags::DUK_COMPILE_SAFE | DukCompileFlags::DUK_COMPILE_NOSOURCE).bits()) != 0 {
                 let s = self.safe_to_lstring(-1);
                 duk_pop(self.ctx);
-                Err(JsError(s))
+                Err(JsError::from(s))
             } else {
                 Ok(())
             }
@@ -430,7 +432,7 @@ impl DukContext {
                                0 | (DukCompileFlags::DUK_COMPILE_NORESULT | DukCompileFlags::DUK_COMPILE_NOFILENAME).bits()) != 0 {
                 let s = self.safe_to_lstring(-1);
                 duk_pop(self.ctx);
-                Err(JsError(s))
+                Err(JsError::from(s))
             } else {
                 Ok(())
             }
@@ -447,7 +449,7 @@ impl DukContext {
                                1 | DukCompileFlags::DUK_COMPILE_NORESULT.bits()) != 0 {
                 let s = self.safe_to_lstring(-1);
                 duk_pop(self.ctx);
-                Err(JsError(s))
+                Err(JsError::from(s))
             } else {
                 Ok(())
             }
@@ -476,6 +478,12 @@ pub struct DukContextGuard<'a> {
     _marker: std::marker::PhantomData<&'a JsEngine>,
 }
 
+impl std::fmt::Debug for DukContextGuard<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DukContextGuard").finish()
+    }
+}
+
 impl Deref for DukContextGuard<'_> {
     type Target = DukContext;
 
@@ -501,13 +509,40 @@ impl <'a> DukContextGuard<'a> {
 
 #[cfg(test)]
 mod tests {
+    use serde::Deserialize;
     use super::*;
+
+    #[test]
+    fn test_eval() {
+        let mut engine = JsEngine::new();
+        //language=js
+        engine.eval(r#" var tmp =  {
+            "foo": 1,
+            "bar": "baz"
+        }
+        tmp
+        "#).unwrap();
+
+        #[derive(Deserialize)]
+        struct TestStruct {
+            foo: i32,
+        }
+        assert_eq!(engine.read_top::<TestStruct>().unwrap().foo, 1);
+        engine.pop();
+    }
+
+    #[test]
+    fn test_get_invalid_context() {
+        let engine = JsEngine::new();
+        let res = engine.get_context(0);
+        assert!(res.is_err());
+    }
 
     #[test]
     fn test_push_thread() {
         let mut engine = JsEngine::new();
         let new_idx = engine.push_thread();
-        let mut new_ctx = engine.get_context(new_idx);
+        let mut new_ctx = engine.get_context(new_idx).unwrap();
         new_ctx.push_string("test");
         assert_eq!(new_ctx.get_string(-1), "test");
         new_ctx.pop();
@@ -525,8 +560,8 @@ mod tests {
         let new_idx = engine.push_thread_new_globalenv();
         let new_idx2 = engine.push_thread_new_globalenv();
 
-        let mut new_ctx = engine.get_context(new_idx);
-        let mut new_ctx2 = engine.get_context(new_idx2);
+        let mut new_ctx = engine.get_context(new_idx).unwrap();
+        let mut new_ctx2 = engine.get_context(new_idx2).unwrap();
 
         // Test first context
         new_ctx.push_string("test");
@@ -549,6 +584,18 @@ mod tests {
         engine.pop_n(2);
 
         assert!(engine.get_stack_dump().contains("ctx: top=0"));
+    }
+
+    #[test]
+    fn test_to_lstring_safety() {
+        let mut engine = JsEngine::new();
+        engine.push_string("test");
+        let s = engine.safe_to_lstring(-1);
+        assert_eq!(s, "test");
+        engine.pop();
+        assert_eq!(s, "test");
+        drop(engine);
+        assert_eq!(s, "test");
     }
 }
 

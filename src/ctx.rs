@@ -10,18 +10,14 @@ macro_rules! try_exec_success {
 }
 
 /// Wrapper for Duktape context
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct DukContext {
     pub (crate) ctx: *mut duk_context,
 }
 
 impl DukContext {
-    pub (crate) unsafe fn from_ptr(ctx: *mut duk_context) -> Self {
+    pub (crate) unsafe fn from_raw(ctx: *mut duk_context) -> Self {
         Self { ctx }
-    }
-
-    pub (crate) unsafe fn set_ptr(&mut self, ctx: *mut duk_context) {
-        self.ctx = ctx;
     }
 
     #[inline]
@@ -239,7 +235,7 @@ impl DukContext {
         if new_ctx.is_null() {
             return Err(JsError::from(format!("could not get context from index {}", index)));
         }
-        Ok(DukContextGuard::new(unsafe { DukContext::from_ptr(new_ctx) }))
+        Ok(DukContextGuard::new(unsafe { DukContext::from_raw(new_ctx) }))
     }
 
     #[inline]

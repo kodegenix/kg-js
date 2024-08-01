@@ -5,23 +5,22 @@ use std::pin::Pin;
 use once_cell::sync::Lazy;
 use smallbox::{SmallBox, smallbox};
 use smallbox::space::S8;
-use crate::bindings::{alloc_func, console_func, duk_api_console_init, duk_api_git_branch, duk_api_git_commit, duk_api_git_describe, duk_api_version, duk_context, duk_create_heap, duk_destroy_heap, fatal_handler, free_func, realloc_func};
-use crate::ctx::{DukContextGuard, DukContext};
+use crate::bindings::{alloc_func, console_func, duk_api_console_init, duk_api_git_branch, duk_api_git_commit, duk_api_git_describe, duk_api_version, duk_create_heap, duk_destroy_heap, fatal_handler, free_func, realloc_func};
+use crate::ctx::{DukContext};
 use crate::{NoopInterop, JsInterop};
 
 // using SmallBox with trait pointer to avoid generics in JsEngine definition
 pub (crate) type InteropRef = SmallBox<dyn JsInterop, S8>;
 
 #[derive(Debug)]
-pub (crate) struct Engine {
-    pub (crate) ctx: *mut duk_context,
+pub (crate) struct Userdata {
     pub (crate) interop: InteropRef,
 }
 
 #[derive(Debug)]
 pub struct JsEngine {
     ctx: DukContext,
-    inner: Pin<Box<Engine>>,
+    inner: Pin<Box<Userdata>>,
 }
 
 
@@ -31,20 +30,17 @@ impl JsEngine {
     }
 
     pub fn with_interop<I: JsInterop>(interop: I) -> Self {
-        let mut e = JsEngine {
-            ctx: unsafe { DukContext::from_ptr(std::ptr::null_mut()) },
-            inner: Box::pin(Engine {
-                ctx: std::ptr::null_mut(),
-                interop: smallbox!(interop),
-            }),
-        };
+        let userdata = Box::pin(Userdata {
+            interop: smallbox!(interop),
+        });
+        let udata = &(*userdata.as_ref()) as *const Userdata;
 
         let ctx = unsafe {
             duk_create_heap(
                 Some(alloc_func),
                 Some(realloc_func),
                 Some(free_func),
-                &(*e.inner.as_ref()) as *const Engine as *mut c_void,
+                udata as *mut c_void,
                 Some(fatal_handler))
         };
 
@@ -52,14 +48,15 @@ impl JsEngine {
             panic!("Could not create duktape context");
         }
 
+        let e = JsEngine {
+            ctx: unsafe { DukContext::from_raw(ctx) },
+            inner: userdata,
+        };
+
         unsafe {
             duk_api_console_init(ctx, Some(console_func));
         }
 
-        unsafe {
-            e.ctx.set_ptr(ctx);
-            e.inner.as_mut().get_unchecked_mut().ctx = ctx;
-        }
         e
     }
 
@@ -99,8 +96,8 @@ impl JsEngine {
         unsafe { self.interop_mut().map_unchecked_mut(|r| r.downcast_mut::<I>().unwrap()) }
     }
 
-    pub fn ctx(&mut self) -> DukContextGuard {
-        DukContextGuard::new(self.ctx)
+    pub fn ctx(&mut self) -> &mut DukContext {
+        &mut self.ctx
     }
 }
 

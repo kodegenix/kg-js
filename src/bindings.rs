@@ -225,7 +225,7 @@ extern "C" {
 
 #[inline(always)]
 unsafe fn interop<'a>(udata: *mut c_void) -> &'a mut InteropRef {
-    &mut (*(udata as *mut Engine)).interop
+    &mut (*(udata as *mut Userdata)).interop
 }
 
 pub extern "C" fn alloc_func(udata: *mut c_void, size: usize) -> *mut c_void {
@@ -266,7 +266,7 @@ pub extern "C" fn func_dispatch(ctx: *mut duk_context) -> i32 {
         let name = str::from_utf8_unchecked(slice::from_raw_parts(ptr, len));
         duk_pop_2(ctx);
         let udata = duk_api_get_heap_udata(ctx);
-        let mut duk_ctx = DukContext::from_ptr(ctx);
+        let mut duk_ctx = DukContext::from_raw(ctx);
         let r = match interop(udata).call(&mut duk_ctx, name) {
             Ok(r) => r,
             Err(err) => {

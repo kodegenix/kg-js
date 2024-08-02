@@ -5,7 +5,7 @@ use std::pin::Pin;
 use once_cell::sync::Lazy;
 use smallbox::{SmallBox, smallbox};
 use smallbox::space::S8;
-use crate::bindings::{alloc_func, console_func, duk_api_console_init, duk_api_git_branch, duk_api_git_commit, duk_api_git_describe, duk_api_version, duk_create_heap, duk_destroy_heap, fatal_handler, free_func, realloc_func};
+use crate::bindings::{alloc_func, duk_api_git_branch, duk_api_git_commit, duk_api_git_describe, duk_api_version, duk_create_heap, duk_destroy_heap, fatal_handler, free_func, realloc_func};
 use crate::ctx::{DukContext};
 use crate::{NoopInterop, JsInterop, JsError};
 
@@ -58,10 +58,6 @@ impl JsEngine {
             ctx: unsafe { DukContext::from_raw(ctx) },
             inner: userdata,
         };
-
-        unsafe {
-            duk_api_console_init(ctx, Some(console_func));
-        }
 
         Ok(e)
     }

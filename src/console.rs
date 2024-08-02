@@ -46,3 +46,57 @@ impl From<u32> for ConsoleFunc {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+    use crate::{ConsoleFunc, DukContext, JsEngine, JsError, JsInterop, Return};
+
+    #[derive(Clone, Debug)]
+    struct ConsoleInterop {
+        messages: Arc<Mutex<Vec<String>>>
+    }
+
+    impl JsInterop for ConsoleInterop {
+        fn call(&mut self, _engine: &mut DukContext, _func_name: &str) -> Result<Return, JsError> {
+            Ok(Return::Error)
+        }
+
+        fn console(&mut self, func: ConsoleFunc, msg: &str) {
+            self.messages.lock().unwrap().push(format!("{}: {}", func.level(), msg));
+        }
+    }
+
+    #[test]
+    fn test_console() {
+        let interop = ConsoleInterop {
+            messages: Arc::new(Mutex::new(Vec::new()))
+        };
+        let mut engine = JsEngine::with_interop(interop.clone()).unwrap();
+        engine.init_console();
+
+        engine.eval("console.log('test message')").unwrap();
+
+        let messages = interop.messages.lock().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0], "DEBUG: test message");
+    }
+
+    #[test]
+    fn test_console_in_new_globalenv() {
+        let interop = ConsoleInterop {
+            messages: Arc::new(Mutex::new(Vec::new()))
+        };
+        let mut engine = JsEngine::with_interop(interop.clone()).unwrap();
+
+        let idx = engine.push_thread_new_globalenv();
+        let mut ctx = engine.get_context(idx).unwrap();
+        ctx.init_console();
+
+        ctx.eval("console.log('test message')").unwrap();
+
+        let messages = interop.messages.lock().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0], "DEBUG: test message");
+    }
+}

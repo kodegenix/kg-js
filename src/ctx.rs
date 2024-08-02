@@ -468,6 +468,14 @@ impl DukContext {
     pub fn read_top<O: ReadJs>(&mut self) -> Result<O, JsError> {
         self.read( -1)
     }
+
+    /// Initialize console functions.
+    #[inline]
+    pub fn init_console(&mut self) {
+        unsafe {
+            duk_api_console_init(self.ctx, Some(console_func));
+        }
+    }
 }
 
 pub struct DukContextGuard<'a> {

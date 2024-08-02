@@ -102,7 +102,7 @@ mod tests {
     }
 
     fn init() -> JsEngine {
-        let mut e = JsEngine::with_interop(Interop::default());
+        let mut e = JsEngine::with_interop(Interop::default()).unwrap();
         e.put_global_function("add", 2);
         e.put_global_function("sub", 2);
         e.put_global_function("put_number", 1);

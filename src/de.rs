@@ -232,7 +232,7 @@ mod tests {
     use serde::{Serialize, Deserialize};
 
     fn deserialize<'a, T: std::fmt::Debug + Serialize + Deserialize<'a> + Default>(value: &T) {
-        let mut e = JsEngine::new();
+        let mut e = JsEngine::new().unwrap();
         e.write(value).unwrap_or_else(|err| {
             panic!("{}", err);
         });
@@ -245,7 +245,7 @@ mod tests {
     }
 
     fn deserialize_expr<'a, T: std::fmt::Debug + Deserialize<'a>>(expr: &str) -> T {
-        let mut e = JsEngine::new();
+        let mut e = JsEngine::new().unwrap();
         e.eval(expr).unwrap();
         e.get_global_string("value");
         let val: T = e.read_top().unwrap_or_else(|err| {

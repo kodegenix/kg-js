@@ -511,7 +511,7 @@ mod tests {
 
     #[test]
     fn test_eval() {
-        let mut engine = JsEngine::new();
+        let mut engine = JsEngine::new().unwrap();
         //language=js
         engine.eval(r#" var tmp =  {
             "foo": 1,
@@ -530,14 +530,14 @@ mod tests {
 
     #[test]
     fn test_get_invalid_context() {
-        let engine = JsEngine::new();
+        let engine = JsEngine::new().unwrap();
         let res = engine.get_context(0);
         assert!(res.is_err());
     }
 
     #[test]
     fn test_push_thread() {
-        let mut engine = JsEngine::new();
+        let mut engine = JsEngine::new().unwrap();
         let new_idx = engine.push_thread();
         let mut new_ctx = engine.get_context(new_idx).unwrap();
         new_ctx.push_string("test");
@@ -552,7 +552,7 @@ mod tests {
 
     #[test]
     fn test_nested_push_thread() {
-        let mut engine = JsEngine::new();
+        let mut engine = JsEngine::new().unwrap();
         let new_idx = engine.push_thread();
         let mut new_ctx = engine.get_context(new_idx).unwrap();
 
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn test_push_thread_new_globalenv() {
-        let mut engine = JsEngine::new();
+        let mut engine = JsEngine::new().unwrap();
 
         let new_idx = engine.push_thread_new_globalenv();
         let new_idx2 = engine.push_thread_new_globalenv();
@@ -605,7 +605,7 @@ mod tests {
 
     #[test]
     fn test_to_lstring_safety() {
-        let mut engine = JsEngine::new();
+        let mut engine = JsEngine::new().unwrap();
         engine.push_string("test");
         let s = engine.safe_to_lstring(-1);
         assert_eq!(s, "test");

@@ -304,7 +304,7 @@ mod tests {
     use serde::{Serialize, Deserialize};
 
     fn serialize<T: Serialize>(value: &T) -> String {
-        let mut e = JsEngine::new();
+        let mut e = JsEngine::new().unwrap();
         e.write(value).unwrap_or_else(|err| {
             panic!("{}", err);
         });

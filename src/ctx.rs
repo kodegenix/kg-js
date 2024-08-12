@@ -33,104 +33,104 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn dup(&mut self, index: i32) {
+    pub fn dup(&self, index: i32) {
         unsafe {
             duk_dup(self.ctx, index);
         }
     }
 
     #[inline]
-    pub fn remove(&mut self, index: i32) {
+    pub fn remove(&self, index: i32) {
         unsafe {
             duk_remove(self.ctx, index);
         }
     }
 
     #[inline]
-    pub fn pop(&mut self) {
+    pub fn pop(&self) {
         unsafe {
             duk_pop(self.ctx);
         }
     }
 
     #[inline]
-    pub fn pop_n(&mut self, n: i32) {
+    pub fn pop_n(&self, n: i32) {
         unsafe {
             duk_pop_n(self.ctx, n);
         }
     }
 
     #[inline]
-    pub fn swap(&mut self, idx1: i32, idx2: i32) {
+    pub fn swap(&self, idx1: i32, idx2: i32) {
         unsafe {
             duk_swap(self.ctx, idx1, idx2);
         }
     }
 
     #[inline]
-    pub fn push_this(&mut self) {
+    pub fn push_this(&self) {
         unsafe { duk_push_this(self.ctx); }
     }
 
     #[inline]
-    pub fn push_thread(&mut self) -> i32 {
+    pub fn push_thread(&self) -> i32 {
         unsafe { duk_push_thread_raw(self.ctx, 0) }
     }
 
     #[inline]
-    pub fn push_thread_new_globalenv(&mut self) -> i32 {
+    pub fn push_thread_new_globalenv(&self) -> i32 {
         unsafe { duk_push_thread_raw(self.ctx, DukThreadFlags::DUK_THREAD_NEW_GLOBAL_ENV.bits()) }
     }
 
     #[inline]
-    pub fn push_global_object(&mut self) {
+    pub fn push_global_object(&self) {
         unsafe { duk_push_global_object(self.ctx); }
     }
 
     #[inline]
-    pub fn push_boolean(&mut self, value: bool) {
+    pub fn push_boolean(&self, value: bool) {
         unsafe { duk_push_boolean(self.ctx, value as i32) }
     }
 
     #[inline]
-    pub fn push_null(&mut self) {
+    pub fn push_null(&self) {
         unsafe { duk_push_null(self.ctx) }
     }
 
     #[inline]
-    pub fn push_undefined(&mut self) {
+    pub fn push_undefined(&self) {
         unsafe { duk_push_undefined(self.ctx) }
     }
 
     #[inline]
-    pub fn push_i32(&mut self, value: i32) {
+    pub fn push_i32(&self, value: i32) {
         unsafe { duk_push_int(self.ctx, value) }
     }
 
     #[inline]
-    pub fn push_u32(&mut self, value: u32) {
+    pub fn push_u32(&self, value: u32) {
         unsafe { duk_push_uint(self.ctx, value) }
     }
 
     #[inline]
-    pub fn push_number(&mut self, value: f64) {
+    pub fn push_number(&self, value: f64) {
         unsafe { duk_push_number(self.ctx, value) }
     }
 
     #[inline]
-    pub fn push_string(&mut self, value: &str) {
+    pub fn push_string(&self, value: &str) {
         unsafe {
             duk_push_lstring(self.ctx, value.as_ptr() as *const c_char, value.len());
         }
     }
 
     #[inline]
-    pub fn push_object(&mut self) -> i32 {
+    pub fn push_object(&self) -> i32 {
         unsafe { duk_push_object(self.ctx) }
     }
 
     #[inline]
-    pub fn push_ext_buffer(&mut self, data: &[u8]) {
+    pub fn push_ext_buffer(&self, data: &[u8]) {
         unsafe {
             duk_push_buffer_raw(self.ctx, 0, (DukBufFlags::DUK_BUF_FLAG_DYNAMIC | DukBufFlags::DUK_BUF_FLAG_EXTERNAL).bits());
             duk_config_buffer(self.ctx, -1, data.as_ptr() as *mut c_void, data.len());
@@ -138,11 +138,11 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn push_array(&mut self) -> i32 {
+    pub fn push_array(&self) -> i32 {
         unsafe { duk_push_array(self.ctx) }
     }
 
-    pub fn push_function(&mut self, func_name: &str, nargs: i32) {
+    pub fn push_function(&self, func_name: &str, nargs: i32) {
         unsafe {
             duk_push_c_function(self.ctx, Some(func_dispatch), nargs);
             duk_push_lstring(self.ctx, FUNC_NAME_PROP.as_ptr() as *const c_char, FUNC_NAME_PROP.len());
@@ -151,7 +151,7 @@ impl DukContext {
         }
     }
 
-    pub fn put_prop_function(&mut self, obj_index: i32, func_name: &str, nargs: i32) {
+    pub fn put_prop_function(&self, obj_index: i32, func_name: &str, nargs: i32) {
         let obj_index = self.normalize_index(obj_index);
         self.push_function(func_name, nargs);
         unsafe {
@@ -159,7 +159,7 @@ impl DukContext {
         }
     }
 
-    pub fn put_global_function(&mut self, func_name: &str, nargs: i32) {
+    pub fn put_global_function(&self, func_name: &str, nargs: i32) {
         self.push_function(func_name, nargs);
         self.put_global_string(func_name);
     }
@@ -200,7 +200,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn get_string(&mut self, index: i32) -> &str {
+    pub fn get_string(&self, index: i32) -> &str {
         use std::str;
         use std::slice;
         unsafe {
@@ -211,7 +211,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn get_buffer(&mut self, index: i32) -> &[u8] {
+    pub fn get_buffer(&self, index: i32) -> &[u8] {
         use std::slice;
         unsafe {
             let mut len: usize = 0;
@@ -221,12 +221,12 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn get_number(&mut self, index: i32) -> f64 {
+    pub fn get_number(&self, index: i32) -> f64 {
         unsafe { duk_get_number(self.ctx, index) }
     }
 
     #[inline]
-    pub fn get_boolean(&mut self, index: i32) -> bool {
+    pub fn get_boolean(&self, index: i32) -> bool {
         unsafe { duk_get_boolean(self.ctx, index) != 0 }
     }
 
@@ -239,24 +239,24 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn get_prop(&mut self, obj_index: i32) -> bool {
+    pub fn get_prop(&self, obj_index: i32) -> bool {
         unsafe { duk_get_prop(self.ctx, obj_index) == 1 }
     }
 
     #[inline]
-    pub fn put_prop(&mut self, obj_index: i32) {
+    pub fn put_prop(&self, obj_index: i32) {
         unsafe { duk_put_prop(self.ctx, obj_index); }
     }
 
     #[inline]
-    pub fn get_prop_string(&mut self, obj_index: i32, key: &str) -> bool {
+    pub fn get_prop_string(&self, obj_index: i32, key: &str) -> bool {
         unsafe {
             duk_get_prop_lstring(self.ctx, obj_index, key.as_ptr() as *const c_char, key.len()) == 1
         }
     }
 
     #[inline]
-    pub fn put_prop_string(&mut self, obj_index: i32, key: &str) {
+    pub fn put_prop_string(&self, obj_index: i32, key: &str) {
         unsafe {
             duk_put_prop_lstring(self.ctx,
                                  obj_index,
@@ -266,68 +266,68 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn get_prop_index(&mut self, obj_index: i32, index: u32) -> bool {
+    pub fn get_prop_index(&self, obj_index: i32, index: u32) -> bool {
         unsafe { duk_get_prop_index(self.ctx, obj_index, index) == 1 }
     }
 
     #[inline]
-    pub fn put_prop_index(&mut self, obj_index: i32, index: u32) {
+    pub fn put_prop_index(&self, obj_index: i32, index: u32) {
         unsafe {
             duk_put_prop_index(self.ctx, obj_index, index);
         }
     }
 
     #[inline]
-    pub fn get_global_string(&mut self, key: &str) -> bool {
+    pub fn get_global_string(&self, key: &str) -> bool {
         unsafe {
             duk_get_global_lstring(self.ctx, key.as_ptr() as *const c_char, key.len()) == 1
         }
     }
 
     #[inline]
-    pub fn put_global_string(&mut self, key: &str) {
+    pub fn put_global_string(&self, key: &str) {
         unsafe {
             duk_put_global_lstring(self.ctx, key.as_ptr() as *const c_char, key.len());
         }
     }
 
     #[inline]
-    pub fn get_length(&mut self, obj_index: i32) -> usize {
+    pub fn get_length(&self, obj_index: i32) -> usize {
         unsafe {
             duk_get_length(self.ctx, obj_index)
         }
     }
 
     #[inline]
-    pub fn enum_indices(&mut self, obj_index: i32) {
+    pub fn enum_indices(&self, obj_index: i32) {
         unsafe {
             duk_enum(self.ctx, obj_index, DukEnumFlags::DUK_ENUM_ARRAY_INDICES_ONLY.bits());
         }
     }
 
     #[inline]
-    pub fn enum_keys(&mut self, obj_index: i32) {
+    pub fn enum_keys(&self, obj_index: i32) {
         unsafe {
             duk_enum(self.ctx, obj_index, DukEnumFlags::DUK_ENUM_OWN_PROPERTIES_ONLY.bits());
         }
     }
 
     #[inline]
-    pub fn next(&mut self, obj_index: i32) -> bool {
+    pub fn next(&self, obj_index: i32) -> bool {
         unsafe {
             duk_next(self.ctx, obj_index, 1) == 1
         }
     }
 
     #[inline]
-    pub fn call_prop(&mut self, obj_index: i32, nargs: usize) {
+    pub fn call_prop(&self, obj_index: i32, nargs: usize) {
         unsafe {
             duk_call_prop(self.ctx, obj_index, nargs as i32);
         }
     }
 
     #[inline]
-    pub fn pcall(&mut self, nargs: usize) -> Result<(), i32> {
+    pub fn pcall(&self, nargs: usize) -> Result<(), i32> {
         let res = unsafe {
             duk_pcall(self.ctx, nargs as i32)
         };
@@ -336,7 +336,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn pcall_method(&mut self, nargs: usize) -> Result<(), i32> {
+    pub fn pcall_method(&self, nargs: usize) -> Result<(), i32> {
         let res = unsafe {
             duk_pcall_method(self.ctx, nargs as i32)
         };
@@ -345,7 +345,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn pcall_prop(&mut self, obj_index: i32, nargs: usize) -> Result<(), i32> {
+    pub fn pcall_prop(&self, obj_index: i32, nargs: usize) -> Result<(), i32> {
         let res = unsafe {
             duk_pcall_prop(self.ctx, obj_index, nargs as i32)
         };
@@ -354,7 +354,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn safe_to_lstring(&mut self, obj_index: i32) -> String {
+    pub fn safe_to_lstring(&self, obj_index: i32) -> String {
         unsafe {
             let mut len: usize = 0;
             let msg = duk_safe_to_lstring(self.ctx, obj_index, &mut len);
@@ -363,20 +363,20 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn throw(&mut self) {
+    pub fn throw(&self) {
         unsafe {
             duk_throw_raw(self.ctx);
         }
     }
 
     #[inline]
-    pub fn push_context_dump(&mut self) {
+    pub fn push_context_dump(&self) {
         unsafe {
             duk_push_context_dump(self.ctx);
         }
     }
 
-    pub fn get_stack_dump(&mut self) -> String {
+    pub fn get_stack_dump(&self) -> String {
         self.push_context_dump();
         unsafe {
             let dump = CStr::from_ptr(duk_to_string(self.ctx, -1)).to_string_lossy().to_string();
@@ -386,7 +386,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn eval(&mut self, code: &str) -> Result<(), JsError> {
+    pub fn eval(&self, code: &str) -> Result<(), JsError> {
         unsafe {
             if duk_eval_raw(self.ctx,
                             code.as_ptr() as *const c_char,
@@ -404,7 +404,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn eval_file(&mut self, filename: &str, code: &str) -> Result<(), JsError> {
+    pub fn eval_file(&self, filename: &str, code: &str) -> Result<(), JsError> {
         unsafe {
             duk_push_lstring(self.ctx, filename.as_ptr() as *const c_char, filename.len());
             if duk_eval_raw(self.ctx,
@@ -421,7 +421,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn compile(&mut self, code: &str) -> Result<(), JsError> {
+    pub fn compile(&self, code: &str) -> Result<(), JsError> {
         unsafe {
             if duk_compile_raw(self.ctx,
                                code.as_ptr() as *const c_char,
@@ -437,7 +437,7 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn compile_file(&mut self, filename: &str, code: &str) -> Result<(), JsError> {
+    pub fn compile_file(&self, filename: &str, code: &str) -> Result<(), JsError> {
         unsafe {
             duk_push_lstring(self.ctx, filename.as_ptr() as *const c_char, filename.len());
             if duk_compile_raw(self.ctx,
@@ -454,26 +454,54 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn write<O: WriteJs>(&mut self, obj: &O) -> Result<(), JsError> {
+    pub fn write<O: WriteJs>(&self, obj: &O) -> Result<(), JsError> {
         obj.write_js(self)
     }
 
     #[inline]
-    pub fn read<O: ReadJs>(&mut self, obj_index: i32) -> Result<O, JsError> {
+    pub fn read<O: ReadJs>(&self, obj_index: i32) -> Result<O, JsError> {
         let obj_index = self.normalize_index(obj_index);
         O::read_js(self, obj_index)
     }
 
     #[inline]
-    pub fn read_top<O: ReadJs>(&mut self) -> Result<O, JsError> {
+    pub fn read_top<O: ReadJs>(&self) -> Result<O, JsError> {
         self.read( -1)
     }
 
     /// Initialize console functions.
     #[inline]
-    pub fn init_console(&mut self) {
+    pub fn init_console(&self) {
         unsafe {
             duk_api_console_init(self.ctx, Some(console_func));
+        }
+    }
+
+    #[inline]
+    pub fn xcopy_top(&self, from: &DukContext, count: i32) {
+        unsafe {
+            duk_xcopymove_raw(self.ctx, from.ctx, count, 1);
+        }
+    }
+
+    #[inline]
+    pub fn xmove_top(&self, from: &mut DukContext, count: i32) {
+        unsafe {
+            duk_xcopymove_raw(self.ctx, from.ctx, count, 0);
+        }
+    }
+
+    #[inline]
+    pub fn check_stack(&self, extra: i32) -> bool {
+        unsafe {
+            duk_check_stack(self.ctx, extra)
+        }
+    }
+
+    #[inline]
+    pub fn check_stack_top(&self, top: i32) -> bool {
+        unsafe {
+            duk_check_stack_top(self.ctx, top)
         }
     }
 }
@@ -519,7 +547,7 @@ mod tests {
 
     #[test]
     fn test_eval() {
-        let mut engine = JsEngine::new().unwrap();
+        let engine = JsEngine::new().unwrap();
         //language=js
         engine.eval(r#" var tmp =  {
             "foo": 1,
@@ -545,9 +573,9 @@ mod tests {
 
     #[test]
     fn test_push_thread() {
-        let mut engine = JsEngine::new().unwrap();
+        let engine = JsEngine::new().unwrap();
         let new_idx = engine.push_thread();
-        let mut new_ctx = engine.get_context(new_idx).unwrap();
+        let new_ctx = engine.get_context(new_idx).unwrap();
         new_ctx.push_string("test");
         assert_eq!(new_ctx.get_string(-1), "test");
         new_ctx.pop();
@@ -560,12 +588,12 @@ mod tests {
 
     #[test]
     fn test_nested_push_thread() {
-        let mut engine = JsEngine::new().unwrap();
+        let engine = JsEngine::new().unwrap();
         let new_idx = engine.push_thread();
-        let mut new_ctx = engine.get_context(new_idx).unwrap();
+        let new_ctx = engine.get_context(new_idx).unwrap();
 
         let nested_id = new_ctx.push_thread();
-        let mut nested_ctx = new_ctx.get_context(nested_id).unwrap();
+        let nested_ctx = new_ctx.get_context(nested_id).unwrap();
         nested_ctx.push_string("test");
 
         assert_eq!(nested_ctx.get_string(-1), "test");
@@ -580,13 +608,13 @@ mod tests {
 
     #[test]
     fn test_push_thread_new_globalenv() {
-        let mut engine = JsEngine::new().unwrap();
+        let engine = JsEngine::new().unwrap();
 
         let new_idx = engine.push_thread_new_globalenv();
         let new_idx2 = engine.push_thread_new_globalenv();
 
-        let mut new_ctx = engine.get_context(new_idx).unwrap();
-        let mut new_ctx2 = engine.get_context(new_idx2).unwrap();
+        let new_ctx = engine.get_context(new_idx).unwrap();
+        let new_ctx2 = engine.get_context(new_idx2).unwrap();
 
         // Test first context
         new_ctx.push_string("test");
@@ -613,7 +641,7 @@ mod tests {
 
     #[test]
     fn test_to_lstring_safety() {
-        let mut engine = JsEngine::new().unwrap();
+        let engine = JsEngine::new().unwrap();
         engine.push_string("test");
         let s = engine.safe_to_lstring(-1);
         assert_eq!(s, "test");
@@ -621,6 +649,36 @@ mod tests {
         assert_eq!(s, "test");
         drop(engine);
         assert_eq!(s, "test");
+    }
+
+    #[test]
+    fn test_xcopy_top() {
+        let engine = JsEngine::new().unwrap();
+
+        //language=javascript
+        engine.eval("GLOBAL_TEST = { a: 1, b: 2 }").unwrap();
+
+        let ctx1_idx = engine.push_thread_new_globalenv();
+        let ctx1 = engine.get_context(ctx1_idx).unwrap();
+        // Create a new global variable
+        assert!(engine.get_global_string("GLOBAL_TEST"));
+
+        assert!(ctx1.check_stack(1));
+        // Copy the global variable to the new context
+        ctx1.xcopy_top(&engine, 1);
+        ctx1.put_global_string("GLOBAL_TEST");
+
+        // Check if the global variable is available in the new context
+        ctx1.eval("GLOBAL_TEST.b").unwrap();
+        assert_eq!(ctx1.get_number(-1), 2.0);
+
+        // Change the value of the global variable in the new context
+        ctx1.eval("GLOBAL_TEST.b = 5").unwrap();
+
+        // Check if the value has changed in original context
+        engine.eval("GLOBAL_TEST.b").unwrap();
+        assert_eq!(engine.get_number(-1), 5.0);
+        engine.pop();
     }
 }
 

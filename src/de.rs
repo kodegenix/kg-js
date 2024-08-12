@@ -3,19 +3,19 @@ use serde::de::*;
 
 
 impl<'de, T: Deserialize<'de>> ReadJs for T {
-    fn read_js(ctx: &mut DukContext, obj_index: i32) -> Result<Self, JsError> {
+    fn read_js(ctx: &DukContext, obj_index: i32) -> Result<Self, JsError> {
         Self::deserialize(JsEngineDeserializer::new(ctx, obj_index))
     }
 }
 
 pub struct JsEngineDeserializer<'a> {
-    ctx: &'a mut DukContext,
+    ctx: &'a DukContext,
     index: i32,
     len: usize,
 }
 
 impl <'a> JsEngineDeserializer<'a> {
-    pub fn new(ctx: &'a mut DukContext, index: i32) -> Self {
+    pub fn new(ctx: &'a DukContext, index: i32) -> Self {
         Self { ctx, index, len: 0 }
     }
 }
@@ -232,7 +232,7 @@ mod tests {
     use serde::{Serialize, Deserialize};
 
     fn deserialize<'a, T: std::fmt::Debug + Serialize + Deserialize<'a> + Default>(value: &T) {
-        let mut e = JsEngine::new().unwrap();
+        let e = JsEngine::new().unwrap();
         e.write(value).unwrap_or_else(|err| {
             panic!("{}", err);
         });
@@ -245,7 +245,7 @@ mod tests {
     }
 
     fn deserialize_expr<'a, T: std::fmt::Debug + Deserialize<'a>>(expr: &str) -> T {
-        let mut e = JsEngine::new().unwrap();
+        let e = JsEngine::new().unwrap();
         e.eval(expr).unwrap();
         e.get_global_string("value");
         let val: T = e.read_top().unwrap_or_else(|err| {

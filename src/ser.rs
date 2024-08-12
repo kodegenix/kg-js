@@ -2,7 +2,7 @@ use super::*;
 use serde::ser::*;
 
 impl<T: Serialize> WriteJs for T {
-    fn write_js(&self, ctx: &mut DukContext) -> Result<(), JsError> {
+    fn write_js(&self, ctx: &DukContext) -> Result<(), JsError> {
         self.serialize(JsEngineSerializer { ctx, index: 0 })
     }
 }
@@ -21,7 +21,7 @@ impl serde::de::Error for JsError {
 
 
 pub struct JsEngineSerializer<'a> {
-    ctx: &'a mut DukContext,
+    ctx: &'a DukContext,
     index: u32,
 }
 
@@ -304,7 +304,7 @@ mod tests {
     use serde::{Serialize, Deserialize};
 
     fn serialize<T: Serialize>(value: &T) -> String {
-        let mut e = JsEngine::new().unwrap();
+        let e = JsEngine::new().unwrap();
         e.write(value).unwrap_or_else(|err| {
             panic!("{}", err);
         });

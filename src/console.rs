@@ -72,7 +72,7 @@ mod tests {
         let interop = ConsoleInterop {
             messages: Arc::new(Mutex::new(Vec::new()))
         };
-        let mut engine = JsEngine::with_interop(interop.clone()).unwrap();
+        let engine = JsEngine::with_interop(interop.clone()).unwrap();
         engine.init_console();
 
         engine.eval("console.log('test message')").unwrap();
@@ -87,10 +87,10 @@ mod tests {
         let interop = ConsoleInterop {
             messages: Arc::new(Mutex::new(Vec::new()))
         };
-        let mut engine = JsEngine::with_interop(interop.clone()).unwrap();
+        let engine = JsEngine::with_interop(interop.clone()).unwrap();
 
         let idx = engine.push_thread_new_globalenv();
-        let mut ctx = engine.get_context(idx).unwrap();
+        let ctx = engine.get_context(idx).unwrap();
         ctx.init_console();
 
         ctx.eval("console.log('test message')").unwrap();

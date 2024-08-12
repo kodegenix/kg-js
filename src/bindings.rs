@@ -140,6 +140,8 @@ extern "C" {
     pub fn duk_get_top(ctx: *mut duk_context) -> i32;
     pub fn duk_normalize_index(ctx: *mut duk_context, index: i32) -> i32;
     pub fn duk_require_normalize_index(ctx: *mut duk_context, index: i32) -> i32;
+    pub fn duk_check_stack(ctx: *mut duk_context, extra: i32) -> bool;
+    pub fn duk_check_stack_top(ctx: *mut duk_context, top: i32) -> bool;
 
     pub fn duk_dup(ctx: *mut duk_context, index: i32);
     pub fn duk_remove(ctx: *mut duk_context, index: i32);
@@ -149,6 +151,7 @@ extern "C" {
     pub fn duk_pop_2(ctx: *mut duk_context);
     pub fn duk_pop_n(ctx: *mut duk_context, n: i32);
     pub fn duk_swap(ctx: *mut duk_context, idx1: i32, idx2: i32);
+    pub fn duk_xcopymove_raw(to_ctx: *mut duk_context, from_ctx: *mut duk_context, count: i32, is_copy: i32);
 
     pub fn duk_push_null(ctx: *mut duk_context);
     pub fn duk_push_undefined(ctx: *mut duk_context);

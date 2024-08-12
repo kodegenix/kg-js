@@ -102,7 +102,7 @@ mod tests {
     }
 
     fn init() -> JsEngine {
-        let mut e = JsEngine::with_interop(Interop::default()).unwrap();
+        let e = JsEngine::with_interop(Interop::default()).unwrap();
         e.init_console();
         e.put_global_function("add", 2);
         e.put_global_function("sub", 2);
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn call_rust_function() {
-        let mut e = init();
+        let e = init();
 
         e.eval("var a = add(10, 11); put_number(a);").unwrap();
         assert_eq!(21f64, e.interop_as::<Interop>().number);
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_changed_duk_context() {
-        let mut e = init();
+        let e = init();
 
         //language=javascript
         e.eval("typeof add === 'function'").unwrap();
@@ -136,7 +136,7 @@ mod tests {
         e.pop();
 
         let new_idx = e.push_thread_new_globalenv();
-        let mut ctx = e.get_context(new_idx).unwrap();
+        let ctx = e.get_context(new_idx).unwrap();
 
         // This function should not be available in the new context
         //language=javascript

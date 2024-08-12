@@ -29,11 +29,11 @@ const FUNC_NAME_PROP: &[u8] = b"name";
 const DUK_EXEC_SUCCESS: i32 = 0;
 
 pub trait ReadJs {
-    fn read_js(ctx: &mut DukContext, obj_index: i32) -> Result<Self, JsError>
+    fn read_js(ctx: &DukContext, obj_index: i32) -> Result<Self, JsError>
     where
         Self: Sized;
 
-    fn read_js_top(ctx: &mut DukContext) -> Result<Self, JsError>
+    fn read_js_top(ctx: &DukContext) -> Result<Self, JsError>
     where
         Self: Sized,
     {
@@ -43,7 +43,7 @@ pub trait ReadJs {
 }
 
 pub trait WriteJs {
-    fn write_js(&self, ctx: &mut DukContext) -> Result<(), JsError>;
+    fn write_js(&self, ctx: &DukContext) -> Result<(), JsError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

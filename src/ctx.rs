@@ -504,6 +504,13 @@ impl DukContext {
             duk_check_stack_top(self.ctx, top)
         }
     }
+
+    #[inline]
+    pub fn set_global_object(&self) {
+        unsafe {
+            duk_set_global_object(self.ctx);
+        }
+    }
 }
 
 pub struct DukContextGuard<'a> {
@@ -679,6 +686,25 @@ mod tests {
         engine.eval("GLOBAL_TEST.b").unwrap();
         assert_eq!(engine.get_number(-1), 5.0);
         engine.pop();
+    }
+
+    #[test]
+    fn test_set_global_object() {
+        let engine = JsEngine::new().unwrap();
+
+        engine.eval("Math.abs(-1)").unwrap();
+        assert_eq!(engine.get_number(-1), 1.0);
+
+        engine.pop();
+
+        //language=javascript
+        let _: () = engine.eval("var obj = { a: 1, b: 2 }; obj").unwrap();
+        engine.set_global_object();
+
+        engine.eval("typeof Math").unwrap();
+
+        assert_eq!(engine.get_string(-1), "undefined");
+
     }
 }
 

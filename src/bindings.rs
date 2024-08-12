@@ -223,6 +223,7 @@ extern "C" {
     pub fn duk_fatal(ctx: *mut duk_context, err_code: i32, err_msg: *const c_char);
 
     pub fn duk_push_context_dump(ctx: *mut duk_context);
+    pub fn duk_set_global_object(ctx: *mut duk_context);
 }
 
 

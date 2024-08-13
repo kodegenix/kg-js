@@ -1,5 +1,5 @@
-use std::mem::ManuallyDrop;
 use bitflags::bitflags;
+use crate::ctx::DukContext;
 use super::*;
 
 bitflags! {
@@ -50,6 +50,20 @@ bitflags! {
         const DUK_BUF_FLAG_DYNAMIC              = (1 << 0);    /* internal flag: dynamic buffer */
         const DUK_BUF_FLAG_EXTERNAL             = (1 << 1);    /* internal flag: external buffer */
         const DUK_BUF_FLAG_NOZERO               = (1 << 2);    /* internal flag: don't zero allocated buffer */
+    }
+}
+
+
+bitflags! {
+    pub struct DukGcFlags: u32 {
+        const NONE                        = 0;           /* No flags */
+        const DUK_GC_COMPACT              = (1 << 0);    /* compact heap objects */
+    }
+}
+
+bitflags! {
+    pub struct DukThreadFlags: u32 {
+        const DUK_THREAD_NEW_GLOBAL_ENV              = (1 << 0);    /* create a new global environment */
     }
 }
 
@@ -134,6 +148,8 @@ extern "C" {
     pub fn duk_get_top(ctx: *mut duk_context) -> i32;
     pub fn duk_normalize_index(ctx: *mut duk_context, index: i32) -> i32;
     pub fn duk_require_normalize_index(ctx: *mut duk_context, index: i32) -> i32;
+    pub fn duk_check_stack(ctx: *mut duk_context, extra: i32) -> bool;
+    pub fn duk_check_stack_top(ctx: *mut duk_context, top: i32) -> bool;
 
     pub fn duk_dup(ctx: *mut duk_context, index: i32);
     pub fn duk_remove(ctx: *mut duk_context, index: i32);
@@ -143,6 +159,7 @@ extern "C" {
     pub fn duk_pop_2(ctx: *mut duk_context);
     pub fn duk_pop_n(ctx: *mut duk_context, n: i32);
     pub fn duk_swap(ctx: *mut duk_context, idx1: i32, idx2: i32);
+    pub fn duk_xcopymove_raw(to_ctx: *mut duk_context, from_ctx: *mut duk_context, count: i32, is_copy: i32);
 
     pub fn duk_push_null(ctx: *mut duk_context);
     pub fn duk_push_undefined(ctx: *mut duk_context);
@@ -159,11 +176,14 @@ extern "C" {
     pub fn duk_push_c_lightfunc(ctx: *mut duk_context, func: Option<duk_c_function>, nargs: i32, length: i32, magic: i32);
     pub fn duk_push_current_function(ctx: *mut duk_context);
     pub fn duk_push_this(ctx: *mut duk_context);
+    pub fn duk_push_thread_raw(ctx: *mut duk_context, flags: u32) -> i32;
 
     pub fn duk_config_buffer(ctx: *mut duk_context, index: i32, ptr: *mut c_void, len: usize);
 
     pub fn duk_get_type(ctx: *mut duk_context, index: i32) -> i32;
     pub fn duk_get_length(ctx: *mut duk_context, index: i32) -> usize;
+    pub fn duk_get_context(ctx: *mut duk_context, index: i32) -> *mut duk_context;
+    pub fn duk_get_context_default(ctx: *mut duk_context, index: i32, def_value: *mut duk_context) -> *mut duk_context;
     pub fn duk_samevalue(ctx: *mut duk_context, index1: i32, index2: i32) -> i32;
 
     pub fn duk_is_array(ctx: *mut duk_context, index: i32) -> i32;
@@ -211,22 +231,15 @@ extern "C" {
     pub fn duk_fatal(ctx: *mut duk_context, err_code: i32, err_msg: *const c_char);
 
     pub fn duk_push_context_dump(ctx: *mut duk_context);
+    pub fn duk_set_global_object(ctx: *mut duk_context);
+
+    pub fn duk_gc(ctx: *mut duk_context, flags: u32);
 }
 
 
 #[inline(always)]
 unsafe fn interop<'a>(udata: *mut c_void) -> &'a mut InteropRef {
-    &mut (*(udata as *mut Engine)).interop
-}
-
-#[inline(always)]
-unsafe fn engine(udata: *mut c_void) -> ManuallyDrop<JsEngine> {
-    let inner = Pin::new_unchecked(Box::from_raw(udata as *mut Engine));
-    let ctx = inner.ctx;
-    ManuallyDrop::new(JsEngine {
-        ctx,
-        inner,
-    })
+    &mut (*(udata as *mut Userdata)).interop
 }
 
 pub extern "C" fn alloc_func(udata: *mut c_void, size: usize) -> *mut c_void {
@@ -267,8 +280,8 @@ pub extern "C" fn func_dispatch(ctx: *mut duk_context) -> i32 {
         let name = str::from_utf8_unchecked(slice::from_raw_parts(ptr, len));
         duk_pop_2(ctx);
         let udata = duk_api_get_heap_udata(ctx);
-        let mut e = engine(udata);
-        let r = match interop(udata).call(&mut e, name) {
+        let mut duk_ctx = DukContext::from_raw(ctx);
+        let r = match interop(udata).call(&mut duk_ctx, name) {
             Ok(r) => r,
             Err(err) => {
                 let msg = format!("{err}");

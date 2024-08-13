@@ -53,6 +53,14 @@ bitflags! {
     }
 }
 
+
+bitflags! {
+    pub struct DukGcFlags: u32 {
+        const NONE                        = 0;           /* No flags */
+        const DUK_GC_COMPACT              = (1 << 0);    /* compact heap objects */
+    }
+}
+
 bitflags! {
     pub struct DukThreadFlags: u32 {
         const DUK_THREAD_NEW_GLOBAL_ENV              = (1 << 0);    /* create a new global environment */
@@ -224,6 +232,8 @@ extern "C" {
 
     pub fn duk_push_context_dump(ctx: *mut duk_context);
     pub fn duk_set_global_object(ctx: *mut duk_context);
+
+    pub fn duk_gc(ctx: *mut duk_context, flags: u32);
 }
 
 

@@ -56,13 +56,25 @@ impl JsInterop for NoopInterop {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use crate::JsEngine;
     use super::*;
 
-    #[derive(Debug, Default)]
+    #[derive(Debug)]
     struct Interop {
         stdout: String,
         number: f64,
+        pub tracker: Arc<std::sync::Mutex<alloc_tracker::AllocTracker>>,
+    }
+
+    impl Interop {
+        pub fn new() -> Self {
+            Self {
+                stdout: String::new(),
+                number: 0.,
+                tracker: Arc::new(std::sync::Mutex::new(alloc_tracker::AllocTracker::new())),
+            }
+        }
     }
 
     impl JsInterop for Interop {
@@ -95,6 +107,29 @@ mod tests {
             }
         }
 
+
+        #[cfg(test)]
+        unsafe fn alloc(&mut self, size: usize) -> *mut u8 {
+            let ptr = crate::alloc::alloc(size);
+            self.tracker.lock().unwrap().alloc(ptr, size);
+            ptr
+        }
+
+
+        #[cfg(test)]
+        unsafe fn realloc(&mut self, ptr: *mut u8, size: usize) -> *mut u8 {
+            let new_ptr = crate::alloc::realloc(ptr, size);
+            self.tracker.lock().unwrap().realloc(ptr, new_ptr, size);
+            new_ptr
+        }
+
+        #[cfg(test)]
+        unsafe fn free(&mut self, ptr: *mut u8) {
+            self.tracker.lock().unwrap().free(ptr);
+            crate::alloc::free(ptr)
+        }
+
+
         fn console(&mut self, _func: ConsoleFunc, msg: &str) {
             self.stdout.push_str(msg);
             self.stdout.push('\n');
@@ -102,7 +137,7 @@ mod tests {
     }
 
     fn init() -> JsEngine {
-        let e = JsEngine::with_interop(Interop::default()).unwrap();
+        let e = JsEngine::with_interop(Interop::new()).unwrap();
         e.init_console();
         e.put_global_function("add", 2);
         e.put_global_function("sub", 2);
@@ -177,5 +212,68 @@ mod tests {
         e.pop();
 
         assert!(e.get_stack_dump().contains("ctx: top=0"));
+    }
+
+
+    #[test]
+    fn test_eval_allocations() {
+        let engine = init();
+        let tracker = engine.interop_as::<Interop>().tracker.clone();
+        assert_eq!(tracker.lock().unwrap().total_bytes(), 102591);
+
+        //language=javascript
+        engine.eval(r#"100 + 2"#).unwrap();
+        assert_eq!(engine.get_number(-1), 102.);
+        assert_eq!(tracker.lock().unwrap().total_bytes(), 102591);
+
+        engine.gc();
+        assert_eq!(tracker.lock().unwrap().total_bytes(), 101686);
+
+        drop(engine);
+
+        assert_eq!(tracker.lock().unwrap().total_bytes(), 0);
+    }
+
+
+    pub mod alloc_tracker {
+        use std::collections::HashMap;
+
+        #[derive(Debug)]
+        pub struct AllocTracker {
+            allocs: HashMap<usize, usize>,
+            alloc_count: u64,
+        }
+
+        impl AllocTracker {
+            pub fn new() -> Self {
+                Self {
+                    allocs: HashMap::new(),
+                    alloc_count: 0,
+                }
+            }
+
+            pub fn alloc(&mut self, ptr: *mut u8, size: usize) {
+                self.alloc_count += 1;
+                self.allocs.insert(ptr as usize, size);
+            }
+
+            pub fn realloc(&mut self, old_ptr: *mut u8, new_ptr: *mut u8, size: usize) {
+                self.alloc_count += 1;
+                self.allocs.remove(&(old_ptr as usize));
+                self.allocs.insert(new_ptr as usize, size);
+            }
+
+            pub fn free(&mut self, ptr: *mut u8) {
+                self.allocs.remove(&(ptr as usize));
+            }
+
+            pub fn total_bytes(&self) -> usize {
+                self.allocs.values().sum()
+            }
+
+            pub fn alloc_count(&self) -> u64 {
+                self.alloc_count
+            }
+        }
     }
 }

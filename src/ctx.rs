@@ -492,16 +492,27 @@ impl DukContext {
     }
 
     #[inline]
-    pub fn check_stack(&self, extra: i32) -> bool {
-        unsafe {
+    pub fn check_stack(&self, extra: i32) -> Result<(), JsError> {
+        let res = unsafe {
             duk_check_stack(self.ctx, extra)
+        };
+
+        if res {
+            Ok(())
+        } else {
+            Err(JsError::from("failed to reserve enough stack space".to_string()))
         }
     }
 
     #[inline]
-    pub fn check_stack_top(&self, top: i32) -> bool {
-        unsafe {
+    pub fn check_stack_top(&self, top: i32) -> Result<(), JsError> {
+        let res = unsafe {
             duk_check_stack_top(self.ctx, top)
+        };
+        if res {
+            Ok(())
+        } else {
+            Err(JsError::from("failed to reserve enough stack space".to_string()))
         }
     }
 
@@ -509,6 +520,12 @@ impl DukContext {
     pub fn set_global_object(&self) {
         unsafe {
             duk_set_global_object(self.ctx);
+        }
+    }
+
+    pub fn gc(&self) {
+        unsafe {
+            duk_gc(self.ctx, DukGcFlags::NONE.bits());
         }
     }
 }
@@ -659,6 +676,13 @@ mod tests {
     }
 
     #[test]
+    fn test_check_stack_error() {
+        let engine = JsEngine::new().unwrap();
+        let res = engine.check_stack(i32::MAX);
+        assert!(res.is_err());
+    }
+
+    #[test]
     fn test_xcopy_top() {
         let engine = JsEngine::new().unwrap();
 
@@ -670,7 +694,7 @@ mod tests {
         // Create a new global variable
         assert!(engine.get_global_string("GLOBAL_TEST"));
 
-        assert!(ctx1.check_stack(1));
+        ctx1.check_stack(1).unwrap();
         // Copy the global variable to the new context
         ctx1.xcopy_top(&engine, 1);
         ctx1.put_global_string("GLOBAL_TEST");
@@ -705,6 +729,16 @@ mod tests {
 
         assert_eq!(engine.get_string(-1), "undefined");
 
+    }
+
+    #[test]
+    fn test_gc() {
+        let engine = JsEngine::new().unwrap();
+
+        engine.eval("Math.abs(-1)").unwrap();
+        assert_eq!(engine.get_number(-1), 1.0);
+        engine.pop();
+        engine.gc();
     }
 }
 

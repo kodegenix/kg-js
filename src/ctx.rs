@@ -385,6 +385,25 @@ impl DukContext {
         }
     }
 
+    /// Propagate JS error to Rust, popping the error from the stack.
+    /// js_res: Result<(), i32> - JS result returned by protected call functions.
+    /// If it is an error, it will be converted to JsError.
+    /// This method should be called immediately after a protected call to handle the error.
+    pub fn propagate_js_error<T>(&self, js_res: Result<T, i32>) -> Result<T, JsError> {
+        unsafe {
+            match js_res {
+                Ok(v) => Ok(v),
+                Err(_err) => {
+                    let mut len: usize = 0;
+                    let msg = duk_safe_to_lstring(self.ctx, -1, &mut len);
+                    let s = String::from(std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg as *const u8, len)));
+                    duk_pop(self.ctx);
+                    Err(JsError::from(s))
+                }
+            }
+        }
+    }
+
     #[inline]
     pub fn eval(&self, code: &str) -> Result<(), JsError> {
         unsafe {
@@ -739,6 +758,31 @@ mod tests {
         assert_eq!(engine.get_number(-1), 1.0);
         engine.pop();
         engine.gc();
+    }
+
+    #[test]
+    fn tes_propagate_js_error() {
+        let engine = JsEngine::new().unwrap();
+        //language=js
+        engine.eval(r#" var tmp =  {
+            "foo": 1,
+            "bar": "baz",
+            "some_fn": function() {
+                throw new Error("test error");
+            }
+        }
+        tmp
+        "#).unwrap();
+
+        engine.push_string("some_fn");
+
+        let call_res = engine.pcall_prop(0, 0);
+        assert!(call_res.is_err());
+        let res = engine.propagate_js_error(call_res);
+
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(err.to_string().contains("test error"));
     }
 }
 
